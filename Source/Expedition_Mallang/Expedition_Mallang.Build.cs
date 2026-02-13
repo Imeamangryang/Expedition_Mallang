@@ -18,7 +18,12 @@ public class Expedition_Mallang : ModuleRules
 			"StateTreeModule",
 			"GameplayStateTreeModule",
 			"UMG",
-			"Slate"
+			"Slate",
+			"GeometryFramework",
+			"GeometryCore", 
+			"DynamicMesh",
+			"MeshDescription",
+			"StaticMeshDescription",
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
