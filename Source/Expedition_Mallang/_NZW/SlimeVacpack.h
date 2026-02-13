@@ -25,12 +25,15 @@ public:
 	
 /*! 함수 */
 	UFUNCTION(BlueprintPure, Category="Weapon")
-	USkeletalMeshComponent* GetWeaponSkeletalMesh() const { return WeaponSkeletalMesh; }
-	
+	USkeletalMeshComponent* GetWeaponFirstMesh() const { return WeaponFirst; }
+	USkeletalMeshComponent* GetWeaponThirdMesh() const { return WeaponThird; }
 	
 /*! 변수 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
-	USkeletalMeshComponent* WeaponSkeletalMesh;
+	USkeletalMeshComponent* WeaponFirst;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
+	USkeletalMeshComponent* WeaponThird;
+	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
 	USceneComponent* Muzzle;
 };

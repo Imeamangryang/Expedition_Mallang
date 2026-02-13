@@ -7,8 +7,10 @@
 #include "SlimePlayer.generated.h"
 
 // class USpringArmComponent;
-class UCameraComponent;
 class USkeletalMeshComponent;
+class UCameraComponent;
+class ASlimeVacpack;
+
 // Enhanced Input에서 액션값을 받을 때 사용하는 구조체
 struct FInputActionValue;
 
@@ -25,7 +27,9 @@ public:
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
-
+	
+	virtual void OnConstruction(const FTransform& Transform) override;
+	
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
@@ -33,10 +37,11 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	
+	
+/*! 함수 */	
 	UFUNCTION(BlueprintCallable)	
 	FVector GetCurrentVelocity();
 	
-protected:
 	UFUNCTION()
 	void Move(const FInputActionValue& Value);
 	UFUNCTION()
@@ -48,23 +53,41 @@ protected:
 	UFUNCTION()
 	void Sprint(const FInputActionValue& Value);
 	
+/*! 변수 */
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
-	USkeletalMeshComponent* SkeletalMesh;	
+	USkeletalMeshComponent* FirstSkeletalMesh;	
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* Camera;
+		
+public:
+	/** Stat Settings */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer.Stat")
+	float MaxHP = 100.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer.Stat")
+	float CurHP;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer.Stat")
+	float MaxMp = 100.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer.Stat")
+	float CurMp;	
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer")
+	/** Movement Settings */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer.Movement")
 	FVector2D MoveInput;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer.Movement")
 	float CurrentSpeed = 0.f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer.Movement")
 	float MoveSpeed = 300.f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer.Movement")
 	float SprintSpeed = 500.f;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer.Movement")
 	FVector Velocity;
+	
+	/** Weapon Settings */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SlimePlayer.Weapon")
+	ASlimeVacpack* SlimeVacpack;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer.Weapon")
+	FName SlimePlayerWeaponSocket = FName("HandGrip_R");
 	
 };
