@@ -8,6 +8,7 @@
 
 class UInputMappingContext;
 class UInputAction;
+class USlimePlayerHUD;
 
 /**
  * 
@@ -29,13 +30,25 @@ public:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* MoveAction;
-	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* JumpAction;
-	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* LookAction;
-	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* SprintAction;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* SpotLightAction;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* Num_1Action;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* Num_2Action;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* Num_3Action;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* Num_4Action;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	TSubclassOf<USlimePlayerHUD> HUDClass;
+	UPROPERTY()
+	USlimePlayerHUD* HUDWidget;
 };

@@ -3,13 +3,18 @@
 
 #include "_NZW/SlimePlayerController.h"
 #include "EnhancedInputSubsystems.h"
+#include "SlimePlayer.h"
+#include "SlimePlayerHUD.h"
+#include "Blueprint/UserWidget.h"
 
 ASlimePlayerController::ASlimePlayerController()
 	: InputMappingContext(nullptr),
 	  MoveAction(nullptr), 
 	  JumpAction(nullptr), 
 	  LookAction(nullptr), 
-	  SprintAction(nullptr)
+	  SprintAction(nullptr),
+	  SpotLightAction(nullptr),
+	  Num_1Action(nullptr), Num_2Action(nullptr), Num_3Action(nullptr), Num_4Action(nullptr)
 {
 }
 
@@ -29,8 +34,25 @@ void ASlimePlayerController::BeginPlay()
 			{
 				// 주어진 IMC를 Subsystem에 추가해 입력 매핑 활성화
 				Subsystem->AddMappingContext(InputMappingContext, 0);
+				UE_LOG(LogTemp, Warning, TEXT("input mapping 활성화 완"));
 			}
 		}
 	}
 	
+	if (HUDClass)
+	{
+		HUDWidget = CreateWidget<USlimePlayerHUD>(this, HUDClass);
+		
+		if (HUDWidget)
+		{
+			HUDWidget->AddToViewport();
+		}
+	}
+	
+	// 2) Pawn 얻어서 연결
+	ASlimePlayer* SlimePlayer = Cast<ASlimePlayer>(GetPawn());
+	if (HUDWidget && SlimePlayer)
+	{
+		HUDWidget->SetUpSlimePlayer(SlimePlayer);
+	}
 }

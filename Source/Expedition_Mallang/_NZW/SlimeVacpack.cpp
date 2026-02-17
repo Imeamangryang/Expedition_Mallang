@@ -25,17 +25,17 @@ ASlimeVacpack::ASlimeVacpack()
 	
 	//. 각각 맞는 설정으로 초기화
 	WeaponFirst->SetupAttachment(RootComponent);
-	WeaponFirst->SetCollisionProfileName(FName("NoCollision"));
+	WeaponFirst->SetOnlyOwnerSee(true);
 	WeaponFirst->SetFirstPersonPrimitiveType(EFirstPersonPrimitiveType::FirstPerson);
-	WeaponFirst->bOnlyOwnerSee = true;
+	WeaponFirst->SetCollisionProfileName(FName("NoCollision"));
 	
 	WeaponThird->SetupAttachment(RootComponent);
-	WeaponThird->SetCollisionProfileName(FName("NoCollision"));
+	WeaponThird->SetOwnerNoSee(true);
 	WeaponThird->SetFirstPersonPrimitiveType(EFirstPersonPrimitiveType::WorldSpaceRepresentation);
-	WeaponThird->bOwnerNoSee = true;
+	WeaponThird->SetCollisionProfileName(FName("NoCollision"));
 	
 	//. 총구 설정
-	Muzzle = CreateDefaultSubobject<USceneComponent>("Muzzle");
+	Muzzle = CreateDefaultSubobject<USceneComponent>(TEXT("Muzzle"));
 	Muzzle->SetupAttachment(WeaponFirst);
 	Muzzle->SetRelativeLocation(FVector(0.0f, 63.0f, 11.0f));
 }
