@@ -39,6 +39,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* SpotLightAction;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* VacuumAction;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* Num_1Action;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* Num_2Action;

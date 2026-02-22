@@ -19,6 +19,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FUpdateHP_D, float, Percentage);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FUpdateMP_D, float, Percentage);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FUpdateNB_D, int32, Newbucks);
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FVaccumStart_D);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FVaccumEnd_D);
+
 UCLASS()
 class EXPEDITION_MALLANG_API ASlimePlayer : public ACharacter
 {
@@ -43,20 +46,30 @@ public:
 	
 /*! 함수 */	
 	UFUNCTION(BlueprintCallable)	
-	FVector GetCurrentVelocity();
+	FVector GetCurrentVelocity() { return Velocity; }
 	
 	UFUNCTION()
 	void Move(const FInputActionValue& Value);
+	
 	UFUNCTION()
 	void StartJump(const FInputActionValue& Value);
 	UFUNCTION()
 	void EndJump(const FInputActionValue& Value);
+	
 	UFUNCTION()
 	void Look(const FInputActionValue& Value);
+	
 	UFUNCTION()
 	void Sprint(const FInputActionValue& Value);
+	
 	UFUNCTION()
 	void FlashLight(const FInputActionValue& Value);
+	
+	UFUNCTION()
+	void VacuumStart(const FInputActionValue& Value);
+	UFUNCTION()
+	void VacuumEnd(const FInputActionValue& Value);
+	
 	UFUNCTION()
 	void Num1Func(const FInputActionValue& Value);
 	UFUNCTION()
@@ -102,11 +115,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Movement")
 	FVector Velocity;
 	
-	/** Weapon Settings */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SlimePlayer|Weapon")
+	/** Vacpack Settings */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SlimePlayer|Vacpack")
 	ASlimeVacpack* SlimeVacpack;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Weapon")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Vacpack")
 	FName SlimePlayerWeaponSocket = FName("HandGrip_R");
+	
+	/** Vacuum */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Vacpack")
+	bool bIsVacuumming = false;
 	
 	/** SpotLight Settings */
 	UPROPERTY(BlueprintReadOnly, Category = "SlimePlayer|Equipment")
@@ -122,7 +139,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Equipment")
 	float JetpackAcceleration = 1200.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Equipment")
-	float JetpackLoseMPTime = 100.0f;
+	float JetpackLoseMPTime = 10.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Equipment")
+	float JetpackCurTime = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Equipment")
+	float JetpackStartTime = 0.4f;
 	
 	/** Delegate Settings */
 	UPROPERTY(BlueprintAssignable, Category="SlimePlayer|UI")
@@ -131,4 +152,9 @@ public:
 	FUpdateMP_D OnUpdateMPInPercent;
 	UPROPERTY(BlueprintAssignable, Category="SlimePlayer|UI")
 	FUpdateNB_D OnUpdateNewbucks;
+	
+	UPROPERTY(BlueprintAssignable, Category="SlimePlayer|Vaccum")
+	FVaccumStart_D OnVacuumStart;
+	UPROPERTY(BlueprintAssignable, Category="SlimePlayer|Vaccum")
+	FVaccumEnd_D OnVacuumEnd;
 };

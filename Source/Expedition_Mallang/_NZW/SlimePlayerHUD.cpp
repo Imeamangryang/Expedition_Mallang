@@ -3,6 +3,8 @@
 
 #include "_NZW/SlimePlayerHUD.h"
 
+#include <string>
+
 #include "SlimePlayer.h"
 
 void USlimePlayerHUD::SetUpSlimePlayer(ASlimePlayer* SlimePlayer)
@@ -25,7 +27,7 @@ void USlimePlayerHUD::OnUpdateMPInPercent(float Percent)
 	BP_UpdateMP(Percent);
 }
 
-void USlimePlayerHUD::OnUpdateNewbucks(int Newbucks)
+void USlimePlayerHUD::OnUpdateNewbucks(int32 Newbucks)
 {
 	BP_UpdateNB(Newbucks);
 }

@@ -22,7 +22,7 @@ public:
 	UFUNCTION()
 	void OnUpdateMPInPercent(float Percent);
 	UFUNCTION()
-	void OnUpdateNewbucks(int Newbucks);
+	void OnUpdateNewbucks(int32 Newbucks);
 	
 protected:
 	/** Blueprint에서 실행 할 함수 */
@@ -31,5 +31,5 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category="Slime", meta = (DisplayName = "Update MP"))
 	void BP_UpdateMP(float Percent);
 	UFUNCTION(BlueprintImplementableEvent, Category="Slime", meta = (DisplayName = "Update NB"))
-	void BP_UpdateNB(int Newbucks);
+	void BP_UpdateNB(int32 Newbucks);
 };

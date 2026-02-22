@@ -14,6 +14,7 @@ ASlimePlayerController::ASlimePlayerController()
 	  LookAction(nullptr), 
 	  SprintAction(nullptr),
 	  SpotLightAction(nullptr),
+		VacuumAction(nullptr),
 	  Num_1Action(nullptr), Num_2Action(nullptr), Num_3Action(nullptr), Num_4Action(nullptr)
 {
 }
@@ -42,7 +43,6 @@ void ASlimePlayerController::BeginPlay()
 	if (HUDClass)
 	{
 		HUDWidget = CreateWidget<USlimePlayerHUD>(this, HUDClass);
-		
 		if (HUDWidget)
 		{
 			HUDWidget->AddToViewport();

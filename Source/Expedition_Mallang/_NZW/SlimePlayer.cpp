@@ -16,7 +16,6 @@
 // Sets default values
 ASlimePlayer::ASlimePlayer()
 {
- 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
 	// Set size for collision capsule
@@ -53,6 +52,7 @@ ASlimePlayer::ASlimePlayer()
 
 	GetCapsuleComponent()->SetCapsuleSize(34.0f, 96.0f);
 	
+	//. 손전등
 	SpotLight = CreateDefaultSubobject<USpotLightComponent>(TEXT("SpotLight"));
 	SpotLight->SetupAttachment(Camera);
 	SpotLight->SetRelativeLocationAndRotation(FVector(30.0f, 17.5f, -5.0f), FRotator(-18.6f, -1.3f, 5.26f));
@@ -68,7 +68,7 @@ void ASlimePlayer::BeginPlay()
 {
 	Super::BeginPlay();
 	
-	// Weapon 생성 및 부착
+	//. Vacpack 생성 및 부착
 	if (SlimeVacpack == nullptr)
 	{
 		FActorSpawnParameters SpawnParams;
@@ -76,11 +76,10 @@ void ASlimePlayer::BeginPlay()
 		SpawnParams.Instigator = GetInstigator();
 		
 		SlimeVacpack = GetWorld()->SpawnActor<ASlimeVacpack>(ASlimeVacpack::StaticClass(),  FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
-	
 		const FAttachmentTransformRules AttachmentRule(EAttachmentRule::SnapToTarget, false);
 
 		// attach the weapon actor
-		//SlimeVacpack->AttachToActor(this, AttachmentRule);
+		SlimeVacpack->AttachToActor(this, AttachmentRule);
 
 		// attach the weapon meshes
 		SlimeVacpack->GetWeaponFirstMesh()->AttachToComponent(FirstSkeletalMesh, AttachmentRule, SlimePlayerWeaponSocket);
@@ -89,11 +88,13 @@ void ASlimePlayer::BeginPlay()
 		SlimeVacpack->GetWeaponFirstMesh()->SetAnimation(nullptr);
 	}
 	
+	//. Stat 초기화
 	CurHP = MaxHP;
 	CurMP = MaxMP;
 	
 	CurrentSpeed = MoveSpeed;
 	
+	//. Delegate 초기화 호출
 	OnUpdateHPInPercent.Broadcast(CurHP/MaxHP);
 	OnUpdateMPInPercent.Broadcast(CurMP/MaxMP);
 	OnUpdateNewbucks.Broadcast(Newbucks);
@@ -104,18 +105,36 @@ void ASlimePlayer::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	
-	//* Movement
+	//. Movement
 	FVector Distance = GetActorForwardVector() * MoveInput.X + GetActorRightVector() * MoveInput.Y;
 	Distance.Normalize();
 	FVector Location = Distance * CurrentSpeed * DeltaTime;
 	SetActorLocation(GetActorLocation() + Location);
 	
-	//* 애니메이션에 넘겨주기 위한 Velocity
+	//. 애니메이션에 넘겨주기 위한 Velocity
 	Velocity = FVector(Location.X, Location.Y, Location.Z) / DeltaTime;
-	// UE_LOG(LogTemp, Warning, TEXT("Move Velocity: %f, %f, %f"), Velocity.X, Velocity.Y, Velocity.Z);
 
-	//* 제트팩
-	if (bIsJetpackOn && GetCharacterMovement()->IsFalling())
+	//. 제트팩
+	if (CurMP <= 0)
+	{
+		CurMP = 0.0f;
+		bIsJetpackOn = false;
+	}
+	
+	if (GetCharacterMovement()->IsFalling())
+	{
+		if (bIsJetpackOn)
+		{
+			JetpackCurTime += DeltaTime;
+			UE_LOG(LogTemp, Warning, TEXT("JetpackCurTime : %f"), JetpackCurTime);
+		}
+	}
+	else
+	{
+		JetpackCurTime = 0.0f;
+	}
+
+	if (bIsJetpackOn && JetpackCurTime >= JetpackStartTime)
 	{
 		FVector V = GetCharacterMovement()->Velocity;
 		V.Z += CurrentJetpackAcceleration * DeltaTime;
@@ -123,11 +142,6 @@ void ASlimePlayer::Tick(float DeltaTime)
 
 		CurMP -= JetpackLoseMPTime * DeltaTime;
 		OnUpdateMPInPercent.Broadcast(CurMP / 100.0f);
-		
-		if (CurMP <= 0)
-		{
-			bIsJetpackOn = false;
-		}
 	}
 }
 
@@ -168,6 +182,12 @@ void ASlimePlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 				EnhancedInput->BindAction(PlayerController->SpotLightAction, ETriggerEvent::Started, this, &ASlimePlayer::FlashLight);
 			}
 			
+			if (PlayerController->VacuumAction)
+			{
+				EnhancedInput->BindAction(PlayerController->VacuumAction, ETriggerEvent::Started, this, &ASlimePlayer::VacuumStart);
+				EnhancedInput->BindAction(PlayerController->VacuumAction, ETriggerEvent::Completed, this, &ASlimePlayer::VacuumEnd);
+			}
+			
 			if (PlayerController->Num_1Action)
 			{
 				EnhancedInput->BindAction(PlayerController->Num_1Action, ETriggerEvent::Started, this, &ASlimePlayer::Num1Func);
@@ -191,11 +211,6 @@ void ASlimePlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	}
 }
 
-FVector ASlimePlayer::GetCurrentVelocity()
-{
-	return Velocity;
-}
-
 void ASlimePlayer::Move(const FInputActionValue& Value)
 {
 	if (!GetController()) return;
@@ -211,13 +226,12 @@ void ASlimePlayer::StartJump(const FInputActionValue& Value)
 		
 		bIsJetpackOn = true;
 		
-		
 		if (GetCharacterMovement()->IsFalling())
-		{// 공중에서 눌렀을 경우
+		{ // 공중에서 눌렀을 경우
 			CurrentJetpackAcceleration = JetpackAcceleration + 500.0f;
 		}
 		else
-		{// 땅에서 점프 했을 경우
+		{ // 땅에서 점프 했을 경우
 			CurrentJetpackAcceleration = JetpackAcceleration;
 		}
 	}
@@ -230,6 +244,8 @@ void ASlimePlayer::EndJump(const FInputActionValue& Value)
 	StopJumping();
 	bIsJetpackOn = false;
 	CurrentJetpackAcceleration = 0.0f;
+	
+	JetpackCurTime = 0.0f;
 }
 
 void ASlimePlayer::Look(const FInputActionValue& Value)
@@ -259,6 +275,21 @@ void ASlimePlayer::FlashLight(const FInputActionValue& Value)
 	UE_LOG(LogTemp, Warning, TEXT("Flashlight: %s"), bIsSpotLightOn ? TEXT("ON") : TEXT("OFF"));
 	
 	SpotLight->SetIntensity(bIsSpotLightOn ? SpotLightIntensity : 0.0f);
+}
+
+void ASlimePlayer::VacuumStart(const FInputActionValue& Value)
+{
+	if (Value.Get<bool>())
+	{
+		SlimeVacpack->bIsVacuuming = true;
+		UE_LOG(LogTemp, Warning, TEXT("Vacuum Start!"));
+	}
+}
+
+void ASlimePlayer::VacuumEnd(const FInputActionValue& Value)
+{
+	SlimeVacpack->StopVacuuming();
+	UE_LOG(LogTemp, Warning, TEXT("Vacuum End!"));
 }
 
 void ASlimePlayer::Num1Func(const FInputActionValue& Value)
