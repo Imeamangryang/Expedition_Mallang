@@ -10,6 +10,7 @@
 class UDynamicMeshComponent;
 class UMaterialInterface;
 class USphereComponent;
+class UNiagaraSystem;
 
 struct FSlimeParticle
 {
@@ -52,6 +53,7 @@ public:
 	// Particle과 Constraint 초기화
 	void InitializeParticlesAndConstraints();
 	
+	//  제약 조건 해결 함수
 	void SolveDistanceConstraints(TArray<FDistanceConstraint>& Constraint, float DeltaTime);
 	void SolveVolumeConstraints(float DeltaTime);
 	void SolveCollision(float DeltaTime);
@@ -64,6 +66,9 @@ public:
 	void OnSphereOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 	UFUNCTION()
 	void OnSphereEndOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+	
+	UFUNCTION(BlueprintCallable)
+	void ApplySlimeMovementImpulse(const FVector& Direction, float MoveStrength, float JumpStrength);
 	
 protected:
 	// Called when the game starts or when spawned
@@ -126,6 +131,21 @@ public:
 	float Friction = 0.1f;				// 마찰 계수
 	float Gravity = -980.f;				// 중력 가속도 
 	
+	// 낙하 판정 
+	bool bWasGrounded = false;
+	int32 GroundContactParticleThreshold = 5;   // 최소 접촉 파티클 수
+	float LandingVelocityThreshold = -150.f;    // 낙하 속도 조건
+	
 	UPROPERTY()
 	TSet<TObjectPtr<AActor>> OverlappingActors;
+	
+	UPROPERTY(EditAnywhere, Category="Slime")
+	TSubclassOf<AActor> CarrotClass;
+
+	// 생성할 플롯 클래스
+	UPROPERTY(EditAnywhere, Category="Slime")
+	TSubclassOf<AActor> PlortClass;
+	
+	UPROPERTY(EditAnywhere, Category="Slime")
+	UNiagaraSystem* CollisionFX;
 };

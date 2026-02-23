@@ -24,6 +24,7 @@ public class Expedition_Mallang : ModuleRules
 			"DynamicMesh",
 			"MeshDescription",
 			"StaticMeshDescription",
+			"Niagara"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });

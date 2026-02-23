@@ -6,6 +6,8 @@
 #include "Engine/StaticMesh.h"
 #include "MeshDescription.h"
 #include "StaticMeshAttributes.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraComponent.h"
 
 // Sets default values
 AASlimeActor::AASlimeActor()
@@ -24,6 +26,7 @@ AASlimeActor::AASlimeActor()
 	SphereCollision->SetSphereRadius(SphereRadius);
 	SphereCollision->SetLineThickness(1.0f);
 	SphereCollision->bHiddenInGame = false;
+	SphereCollision->bReceivesDecals = false;
 	
 	// Sphere Collision 오버랩 이벤트 바인딩
 	SphereCollision->OnComponentBeginOverlap.AddDynamic(this, &AASlimeActor::OnSphereOverlap);
@@ -32,10 +35,11 @@ AASlimeActor::AASlimeActor()
 	// DynamicMeshComponent는 시각적 표현만 담당
 	DynamicMeshComp = CreateDefaultSubobject<UDynamicMeshComponent>(TEXT("DynamicMeshComp"));
 	DynamicMeshComp->SetupAttachment(RootComponent);
-	DynamicMeshComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	DynamicMeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	DynamicMeshComp->SetCollisionObjectType(ECC_PhysicsBody);
 	DynamicMeshComp->SetCollisionResponseToAllChannels(ECR_Block);
 	DynamicMeshComp->SetMobility(EComponentMobility::Movable);
+	DynamicMeshComp->bReceivesDecals = false;
 	
 	// Static Mesh 경로 설정
 	SourceMesh = Cast<UStaticMesh>(StaticLoadObject(
@@ -74,7 +78,7 @@ void AASlimeActor::OnConstruction(const FTransform& Transform)
 
 	// DynamicMeshComponent에 적용
 	DynamicMeshComp->GetDynamicMesh()->SetMesh(MoveTemp(DynMesh));
-	DynamicMeshComp->SetComplexAsSimpleCollisionEnabled(true, true);
+	DynamicMeshComp->SetComplexAsSimpleCollisionEnabled(false, false);
 	DynamicMeshComp->NotifyMeshUpdated();
 	
 	// Material 적용
@@ -167,9 +171,6 @@ void AASlimeActor::Tick(float DeltaTime)
 	EDynamicMeshChangeType::GeneralEdit,
 	EDynamicMeshAttributeChangeFlags::VertexPositions
 	);
-
-	DynamicMeshComp->NotifyMeshUpdated();
-	DynamicMeshComp->UpdateCollision();
 }
 
 // StaticMesh를 DynamicMesh로 변환하는 유틸리티 함수
@@ -177,13 +178,17 @@ void AASlimeActor::ConvertStaticMeshToDynamicMesh(const UStaticMesh* StaticMesh,
 {
 	if (!StaticMesh) return;
 
-	// LOD0 사용
 	const FMeshDescription* MeshDesc = StaticMesh->GetMeshDescription(0);
-
 	if (!MeshDesc) return;
+
+	// Attribute 활성화
+	OutMesh.EnableAttributes();
+
+	auto* UVOverlay = OutMesh.Attributes()->PrimaryUV();
 
 	FStaticMeshAttributes Attributes(const_cast<FMeshDescription&>(*MeshDesc));
 	auto VertexPositions = Attributes.GetVertexPositions();
+	auto VertexInstanceUVs = Attributes.GetVertexInstanceUVs();
 
 	// VertexID → DynamicMesh VertexID 매핑
 	TMap<FVertexID, int> VertexMap;
@@ -196,20 +201,29 @@ void AASlimeActor::ConvertStaticMeshToDynamicMesh(const UStaticMesh* StaticMesh,
 		VertexMap.Add(VertexID, NewID);
 	}
 
-	// 트라이앵글 복사
+	// 트라이앵글 + UV 복사
 	for (const FTriangleID TriID : MeshDesc->Triangles().GetElementIDs())
 	{
 		TArrayView<const FVertexInstanceID> InstanceIDs =
 			MeshDesc->GetTriangleVertexInstances(TriID);
 
-		int V0 = VertexMap[
-			MeshDesc->GetVertexInstanceVertex(InstanceIDs[0])];
-		int V1 = VertexMap[
-			MeshDesc->GetVertexInstanceVertex(InstanceIDs[1])];
-		int V2 = VertexMap[
-			MeshDesc->GetVertexInstanceVertex(InstanceIDs[2])];
+		int V[3];
+		int UV[3];
 
-		OutMesh.AppendTriangle(V0, V1, V2);
+		for (int i = 0; i < 3; i++)
+		{
+			FVertexInstanceID InstID = InstanceIDs[i];
+			FVertexID VertID = MeshDesc->GetVertexInstanceVertex(InstID);
+
+			V[i] = VertexMap[VertID];
+
+			FVector2f UVCoord = VertexInstanceUVs.Get(InstID, 0);
+			UV[i] = UVOverlay->AppendElement(
+				FVector2f(UVCoord.X, UVCoord.Y));
+		}
+
+		int TID = OutMesh.AppendTriangle(V[0], V[1], V[2]);
+		UVOverlay->SetTriangle(TID, UE::Geometry::FIndex3i(UV[0], UV[1], UV[2]));
 	}
 }
 
@@ -417,6 +431,7 @@ void AASlimeActor::SolveCollision(float DeltaTime)
 	float ImpulseStrength = 0.0f;
 	
 	FTransform ActorTransform = GetActorTransform();
+	int32 GroundContactCount = 0;
 
 	/*
 	 * 충돌 처리 로직
@@ -462,6 +477,12 @@ void AASlimeActor::SolveCollision(float DeltaTime)
 
 			if (d < 0.0f)
 			{
+				// 바닥인지 체크 (법선이 위쪽을 향하면 바닥)
+				if (ContactNormal.Z > 0.5f)
+				{
+					GroundContactCount++;
+				}
+				
 				float InvMass = 1.0f / P.Mass;
 				float Compliance = CollisionCompliance;
 				float Alpha = Compliance / (DeltaTime * DeltaTime);
@@ -482,6 +503,49 @@ void AASlimeActor::SolveCollision(float DeltaTime)
 			}
 		}
 	}
+	
+	bool bIsGrounded = GroundContactCount >= GroundContactParticleThreshold;
+
+	// 평균 속도 계산
+	FVector AvgVelocity = FVector::ZeroVector;
+	for (const FSlimeParticle& P : Particles)
+	{
+		AvgVelocity += P.Velocity;
+	}
+	AvgVelocity /= Particles.Num();
+
+	// 착지 순간 감지
+	if (!bWasGrounded && bIsGrounded)
+	{
+		if (AvgVelocity.Z < LandingVelocityThreshold)
+		{
+			FLinearColor SlimeColor = FLinearColor::White;
+
+			if (UMaterialInstance* MI =
+				Cast<UMaterialInstance>(DynamicMeshComp->GetMaterial(0)))
+			{
+				MI->GetVectorParameterValue(
+					FMaterialParameterInfo(TEXT("Color")),
+					SlimeColor
+				);
+			}
+		
+			UNiagaraComponent* NiagaraComp =
+				UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+					GetWorld(),
+					CollisionFX,
+					GetActorLocation(),
+					FRotator::ZeroRotator
+				);
+		
+			if (NiagaraComp)
+			{
+				NiagaraComp->SetVariableLinearColor(TEXT("Color"), SlimeColor);
+			}
+		
+		}
+	}
+	bWasGrounded = bIsGrounded;
 
 	/*
 	 * 임펄스 적용 (충돌한 액터가 플레이어나 다른 슬라임인 경우)
@@ -494,6 +558,30 @@ void AASlimeActor::SolveCollision(float DeltaTime)
 	 */
 	if (bImpulseHit)
 	{
+		FLinearColor SlimeColor = FLinearColor::White;
+
+		if (UMaterialInstance* MI =
+			Cast<UMaterialInstance>(DynamicMeshComp->GetMaterial(0)))
+		{
+			MI->GetVectorParameterValue(
+				FMaterialParameterInfo(TEXT("Color")),
+				SlimeColor
+			);
+		}
+		
+		UNiagaraComponent* NiagaraComp =
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+			GetWorld(),
+			CollisionFX,
+			ImpulseContactPoint,
+			ImpulseContactNormal.Rotation()
+		);
+		
+		if (NiagaraComp)
+		{
+			NiagaraComp->SetVariableLinearColor(TEXT("Color"), SlimeColor);
+		}
+		
 		for (FSlimeParticle& P : Particles)
 		{
 			FVector WorldPos = ActorTransform.TransformPosition(P.Position);
@@ -561,6 +649,38 @@ void AASlimeActor::OnSphereOverlap(UPrimitiveComponent* OverlappedComp, AActor* 
 	{
 		return;
 	}
+	
+	// 클래스 체크
+	if (CarrotClass && OtherActor->IsA(CarrotClass))
+	{
+		FVector SpawnLocation = GetActorLocation() + FVector(0, 0, 100);
+
+		// 당근 제거
+		OtherActor->Destroy();
+
+		// 1초 후 Plort 스폰
+		FTimerDelegate TimerDel;
+		TimerDel.BindLambda([this, SpawnLocation]()
+		{
+			if (!PlortClass) return;
+
+			GetWorld()->SpawnActor<AActor>(
+				PlortClass,
+				SpawnLocation,
+				FRotator::ZeroRotator
+			);
+		});
+
+		FTimerHandle PlortSpawnTimer;
+		
+		GetWorld()->GetTimerManager().SetTimer(
+			PlortSpawnTimer,
+			TimerDel,
+			1.0f,
+			false
+		);
+		return;
+	}
 
 	OverlappingActors.Add(OtherActor);
 }
@@ -574,4 +694,26 @@ void AASlimeActor::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComp, AActo
 	}
 	
 	OverlappingActors.Remove(OtherActor);
+}
+
+void AASlimeActor::ApplySlimeMovementImpulse(const FVector& Direction, float MoveStrength, float JumpStrength)
+{
+	if (Particles.Num() == 0)
+		return;
+
+	FVector Center = ComputeParticleCenter();
+	FVector ImpulseDir = Direction.GetSafeNormal();
+	
+	// 최종 임펄스 방향
+	FVector FinalImpulseDir = ImpulseDir * MoveStrength + FVector::UpVector * JumpStrength;
+
+	for (FSlimeParticle& P : Particles)
+	{
+		float Dist = FVector::Distance(P.Position, Center);
+		float Weight = FMath::Clamp(1.0f - Dist / SphereRadius, 0.0f, 1.0f);
+
+		FVector Impulse = FinalImpulseDir * Weight;
+		
+		P.Velocity += Impulse;
+	}
 }
