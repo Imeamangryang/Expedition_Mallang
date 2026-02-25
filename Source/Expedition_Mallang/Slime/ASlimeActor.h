@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "DynamicMesh/DynamicMesh3.h"
+#include "_NZW/VacuumableInterface.h"
 #include "GameFramework/Actor.h"
 #include "ASlimeActor.generated.h"
 
@@ -39,7 +40,7 @@ struct FTriangle
 };
 
 UCLASS()
-class EXPEDITION_MALLANG_API AASlimeActor : public AActor
+class EXPEDITION_MALLANG_API AASlimeActor : public AActor, public IVacuumableInterface
 {
 	GENERATED_BODY()
 	
@@ -70,6 +71,10 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void ApplySlimeMovementImpulse(const FVector& Direction, float MoveStrength, float JumpStrength);
 	
+	//. 인터페이스 함수
+	virtual FName GetID_Implementation() override;
+	virtual UClass* GetItemActorClass_Implementation() override;
+	
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -94,8 +99,6 @@ public:
 	// 물리 충돌용 Sphere Component
 	UPROPERTY(VisibleAnywhere, Category = "Physics")
 	USphereComponent* SphereCollision;
-	
-	float CurrentTime = 0.0f;
 	
 	TArray<FSlimeParticle> Particles;
 	TArray<FDistanceConstraint> Constraints;
@@ -148,4 +151,7 @@ public:
 	
 	UPROPERTY(EditAnywhere, Category="Slime")
 	UNiagaraSystem* CollisionFX;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FName ID = "101";
 };

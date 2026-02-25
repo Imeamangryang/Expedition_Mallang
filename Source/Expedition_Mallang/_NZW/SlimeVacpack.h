@@ -9,6 +9,19 @@
 class UArrowComponent;
 class USphereComponent;
 
+USTRUCT(BlueprintType)
+struct FSlot
+{
+	GENERATED_BODY()
+	
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FName ID = TEXT("");
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 Count = 0;
+};
+
 UCLASS()
 class EXPEDITION_MALLANG_API ASlimeVacpack : public AActor
 {
@@ -32,18 +45,33 @@ public:
 	UFUNCTION(BlueprintPure, Category="Weapon")
 	USkeletalMeshComponent* GetWeaponThirdMesh() const { return WeaponThird; }
 	
-	// [RMB 누르는 동안 Tick에서 호출] 감지 범위 안의 Vacuumable Actor 목록을 매 프레임 갱신
+	// 감지 범위 안의 Vacuumable Actor 목록을 매 프레임 갱신
 	UFUNCTION()
 	void VacuumDetecting();
-	// [RMB 누르는 동안 Tick에서 호출] 감지된 슬라임에 흡입 물리(스프링-댐퍼+소용돌이) 적용
+	// 감지된 슬라임에 흡입 물리(스프링-댐퍼+소용돌이) 적용
 	UFUNCTION()
 	void Vacuuming(float DeltaTime);
-	// [RMB 뗐을 때 한 번 호출] 흡입 중단 → 목록 + 슬라임별 속도 상태 전부 초기화
+	// 흡입 중단 → 목록 + 슬라임별 속도 상태 전부 초기화
 	UFUNCTION()
 	void StopVacuuming();
 	
+	UFUNCTION()
+	void OnComponentBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+	
+	UFUNCTION()
+	void ShowItemInformation();
+	
+	UFUNCTION()
+	int32 FindEmptySlot(FName ID);
+	
+	UFUNCTION()
+	void SelectSlot(int32 SlotNum);
 	
 /*! 변수 */
+public:
+	UPROPERTY()
+	class ASlimePlayer* SlimePlayer;
+	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
 	USkeletalMeshComponent* WeaponFirst;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
@@ -53,39 +81,49 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
 	USphereComponent* VacuumCollision;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacuum", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Inventory", meta=(AllowPrivateAccess="true"))
+	TArray<FSlot> Inventory; 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Inventory", meta=(AllowPrivateAccess="true"))
+	int32 SelectSlotNumber = -1;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Detect", meta=(AllowPrivateAccess="true"))
 	bool bIsVacuuming = false;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Detect", meta=(AllowPrivateAccess="true"))
 	float DetectRange = 1200.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Detect", meta=(AllowPrivateAccess="true"))
 	float DetectFOV = 30.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Vacuuming", meta=(AllowPrivateAccess="true"))
-	float SpringK = 4.0f;			// 스프링 세기: 클수록 중심으로 더 빠르게 수렴
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Vacuuming", meta=(AllowPrivateAccess="true"))
-	float DamperC = 2.0f;			// 댐퍼 세기: 클수록 진동이 빨리 사라짐
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Vacuuming", meta=(AllowPrivateAccess="true"))
-	float VacForce = 1200.0f;		// 흡입 세기 (클수록 빠르게 당김)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Vacuuming", meta=(AllowPrivateAccess="true"))
-	float AxisDamping = 2.0f;		// 축 방향 과속 방지 댐핑
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Vacuuming", meta=(AllowPrivateAccess="true"))
-	float SwirlStrength = 500.0f;	// 소용돌이 세기 (클수록 더 빠르게 회전)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Vacuuming", meta=(AllowPrivateAccess="true"))
-	float LiftForce = 400.0f;		// 중력을 상쇄하고도 남는 추가 부양력
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vacpack|Detect")
 	TArray<TEnumAsByte<EObjectTypeQuery>> VacuumObjectTypes;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Vacpack|Detect")
 	TArray<AActor*> CurrentVacuumTargets;
 	
-	// 슬라임마다 별도로 저장해야 할 속도 상태
-	//! (실제로는 슬라임 Actor에 변수를 두는 것이 좋음)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Vacuuming", meta=(AllowPrivateAccess="true"))
+	float SpringK = 4.0f;					// 스프링 세기: 클수록 중심으로 더 빠르게 수렴
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Vacuuming", meta=(AllowPrivateAccess="true"))
+	float DamperC = 2.0f;					// 댐퍼 세기: 클수록 진동이 빨리 사라짐
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Vacuuming", meta=(AllowPrivateAccess="true"))
+	float VacForce = 1200.0f;			// 흡입 세기 (클수록 빠르게 당김)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Vacuuming", meta=(AllowPrivateAccess="true"))
+	float AxisDamping = 2.0f;			// 축 방향 과속 방지 댐핑
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Vacuuming", meta=(AllowPrivateAccess="true"))
+	float SwirlStrength = 500.0f;	// 소용돌이 세기 (클수록 더 빠르게 회전)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Vacuuming", meta=(AllowPrivateAccess="true"))
+	float LiftForce = 400.0f;			// 중력을 상쇄하고도 남는 추가 부양력
 	
 	// 슬라임의 측면(좌우) 속도 벡터 - 스프링-댐퍼 계산에 사용
 	// FVector를 쓰는 이유: 측면은 3D 공간에서 어떤 방향이든 될 수 있어서 벡터가 필요함
+	UPROPERTY()
 	TMap<AActor*, FVector> VacuumLateralVelocities;
 
 	// 슬라임의 축 방향(앞뒤) 속도 스칼라 - 노즐 쪽으로 빨려 들어오는 속도
 	// float를 쓰는 이유: 축 방향은 Forward 벡터 하나로 이미 방향이 정해져 있어서
 	// 얼마나 빠른지(크기)만 저장하면 됨
+	UPROPERTY()
 	TMap<AActor*, float> VacuumAxisVelocities;
+	
+	//. DataTable
+	UPROPERTY()
+	UDataTable* VacuumableDataTable;
+	
 };

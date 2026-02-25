@@ -3,8 +3,6 @@
 
 #include "_NZW/SlimePlayerHUD.h"
 
-#include <string>
-
 #include "SlimePlayer.h"
 
 void USlimePlayerHUD::SetUpSlimePlayer(ASlimePlayer* SlimePlayer)

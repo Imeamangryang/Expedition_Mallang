@@ -77,7 +77,7 @@ void ASlimePlayer::BeginPlay()
 		
 		SlimeVacpack = GetWorld()->SpawnActor<ASlimeVacpack>(ASlimeVacpack::StaticClass(),  FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
 		const FAttachmentTransformRules AttachmentRule(EAttachmentRule::SnapToTarget, false);
-
+		
 		// attach the weapon actor
 		SlimeVacpack->AttachToActor(this, AttachmentRule);
 
@@ -126,7 +126,7 @@ void ASlimePlayer::Tick(float DeltaTime)
 		if (bIsJetpackOn)
 		{
 			JetpackCurTime += DeltaTime;
-			UE_LOG(LogTemp, Warning, TEXT("JetpackCurTime : %f"), JetpackCurTime);
+			//UE_LOG(LogTemp, Warning, TEXT("JetpackCurTime : %f"), JetpackCurTime);
 		}
 	}
 	else
@@ -296,8 +296,10 @@ void ASlimePlayer::Num1Func(const FInputActionValue& Value)
 {
 	if (Value.Get<bool>())
 	{
-		CurHP -= 10.0f;
-		OnUpdateHPInPercent.Broadcast(CurHP / 100.0f);
+		// CurHP -= 10.0f;
+		// OnUpdateHPInPercent.Broadcast(CurHP / 100.0f);
+		
+		SlimeVacpack->SelectSlot(0);
 	}
 }
 
@@ -305,8 +307,10 @@ void ASlimePlayer::Num2Func(const FInputActionValue& Value)
 {
 	if (Value.Get<bool>())
 	{
-		CurHP += 10.0f;
-		OnUpdateHPInPercent.Broadcast(CurHP / 100.0f);
+		// CurHP += 10.0f;
+		// OnUpdateHPInPercent.Broadcast(CurHP / 100.0f);
+		
+		SlimeVacpack->SelectSlot(1);
 	}
 }
 
@@ -314,8 +318,10 @@ void ASlimePlayer::Num3Func(const FInputActionValue& Value)
 {
 	if (Value.Get<bool>())
 	{
-		CurMP += 10.0f;
-		OnUpdateMPInPercent.Broadcast(CurMP / 100.0f);
+		// CurMP += 10.0f; 
+		// OnUpdateMPInPercent.Broadcast(CurMP / 100.0f);
+		
+		SlimeVacpack->SelectSlot(2);
 	}
 }
 
@@ -323,7 +329,12 @@ void ASlimePlayer::Num4Func(const FInputActionValue& Value)
 {
 	if (Value.Get<bool>())
 	{
-		Newbucks += 5.0f;
-		OnUpdateNewbucks.Broadcast(Newbucks);
+		SlimeVacpack->SelectSlot(3);
 	}
+}
+
+void ASlimePlayer::UpdateNewbucks(int32 AddNewbucks)
+{
+	Newbucks += AddNewbucks;
+	OnUpdateNewbucks.Broadcast(Newbucks);
 }

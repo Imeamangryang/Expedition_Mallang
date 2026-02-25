@@ -15,12 +15,16 @@ class ASlimeVacpack;
 // Enhanced Input에서 액션값을 받을 때 사용하는 구조체
 struct FInputActionValue;
 
+/*! Delegate */ 
+//. HP, MP, Newbucks
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FUpdateHP_D, float, Percentage);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FUpdateMP_D, float, Percentage);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FUpdateNB_D, int32, Newbucks);
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FVaccumStart_D);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FVaccumEnd_D);
+//. ItemInfo
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FItemInfo_D, FName, ID);
+//. ItemSlot
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSelectSlot, int32, SlotNum);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FVacuumed_D, FName, ID, int32, Count, int32, SlotNum);
 
 UCLASS()
 class EXPEDITION_MALLANG_API ASlimePlayer : public ACharacter
@@ -35,7 +39,6 @@ protected:
 	
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
-	
 	
 public:	
 	// Called every frame
@@ -79,6 +82,9 @@ public:
 	UFUNCTION()
 	void Num4Func(const FInputActionValue& Value);
 	
+	UFUNCTION(BlueprintCallable)
+	void UpdateNewbucks(int32 AddNewbucks);
+	
 /*! 변수 */
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="SlimePlayer|Components", meta=(AllowPrivateAccess="true"))
@@ -91,7 +97,6 @@ protected:
 	USpotLightComponent* SpotLight;
 	
 public:
-	/** Stat Settings */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Stat")
 	float MaxHP = 100.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Stat")
@@ -121,10 +126,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Vacpack")
 	FName SlimePlayerWeaponSocket = FName("HandGrip_R");
 	
-	/** Vacuum */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Vacpack")
-	bool bIsVacuumming = false;
-	
 	/** SpotLight Settings */
 	UPROPERTY(BlueprintReadOnly, Category = "SlimePlayer|Equipment")
 	bool bIsSpotLightOn = false;
@@ -153,8 +154,11 @@ public:
 	UPROPERTY(BlueprintAssignable, Category="SlimePlayer|UI")
 	FUpdateNB_D OnUpdateNewbucks;
 	
+	UPROPERTY(BlueprintAssignable, Category="SlimePlayer|UI")
+	FSelectSlot OnSelectSlot;
+	UPROPERTY(BlueprintAssignable, Category="SlimePlayer|UI")
+	FItemInfo_D OnItemInfo;
+	
 	UPROPERTY(BlueprintAssignable, Category="SlimePlayer|Vaccum")
-	FVaccumStart_D OnVacuumStart;
-	UPROPERTY(BlueprintAssignable, Category="SlimePlayer|Vaccum")
-	FVaccumEnd_D OnVacuumEnd;
+	FVacuumed_D OnVacuuming;
 };

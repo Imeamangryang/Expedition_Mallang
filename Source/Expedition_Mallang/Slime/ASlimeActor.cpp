@@ -105,8 +105,6 @@ void AASlimeActor::Tick(float DeltaTime)
 		return;
 	}
 	
-	CurrentTime += DeltaTime;
-	
 	// Particle들을 반대로 이동 (로컬 유지)
 	for (FSlimeParticle& P : Particles)
 	{
@@ -546,7 +544,7 @@ void AASlimeActor::SolveCollision(float DeltaTime)
 		}
 	}
 	bWasGrounded = bIsGrounded;
-
+	
 	/*
 	 * 임펄스 적용 (충돌한 액터가 플레이어나 다른 슬라임인 경우)
 	 * - 충돌 지점으로부터의 거리 기반 가중치 계산
@@ -598,6 +596,18 @@ void AASlimeActor::SolveCollision(float DeltaTime)
 	
 	// Overlapping 된 액터 개수 출력
 	// UE_LOG(LogTemp, Warning, TEXT("Overlapping Actors: %d"), OverlappingActors.Num());
+	// GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow,
+	// 	FString::Printf(TEXT("Overlapping Actors: %d"), OverlappingActors.Num()));
+	//
+	// for (const AActor* Actor : OverlappingActors)
+	// {
+	// 	if (IsValid(Actor))
+	// 	{
+	// 		UE_LOG(LogTemp, Warning, TEXT(" - %s"), *Actor->GetName());
+	// 		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Cyan,
+	// 			FString::Printf(TEXT(" - %s"), *Actor->GetName()));
+	// 	}
+	// }
 }
 
 // Sphere Collision의 중심 위치 계산 함수
@@ -716,4 +726,14 @@ void AASlimeActor::ApplySlimeMovementImpulse(const FVector& Direction, float Mov
 		
 		P.Velocity += Impulse;
 	}
+}
+
+FName AASlimeActor::GetID_Implementation()
+{
+	return ID;
+}
+
+UClass* AASlimeActor::GetItemActorClass_Implementation()
+{
+	return this->GetClass();;
 }

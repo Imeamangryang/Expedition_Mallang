@@ -9,6 +9,7 @@
 class UInputMappingContext;
 class UInputAction;
 class USlimePlayerHUD;
+class USlimePlayerSlotUI;
 
 /**
  * 
@@ -49,8 +50,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* Num_4Action;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
 	TSubclassOf<USlimePlayerHUD> HUDClass;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSubclassOf<USlimePlayerSlotUI> InvenUI;
 	UPROPERTY()
 	USlimePlayerHUD* HUDWidget;
+	UPROPERTY()
+	USlimePlayerSlotUI* InvenUIWidget;
 };

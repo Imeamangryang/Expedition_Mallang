@@ -5,6 +5,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "SlimePlayer.h"
 #include "SlimePlayerHUD.h"
+#include "SlimePlayerSlotUI.h"
 #include "Blueprint/UserWidget.h"
 
 ASlimePlayerController::ASlimePlayerController()
@@ -40,19 +41,26 @@ void ASlimePlayerController::BeginPlay()
 		}
 	}
 	
-	if (HUDClass)
+	if (HUDClass && InvenUI)
 	{
 		HUDWidget = CreateWidget<USlimePlayerHUD>(this, HUDClass);
 		if (HUDWidget)
 		{
 			HUDWidget->AddToViewport();
 		}
+		
+		InvenUIWidget = CreateWidget<USlimePlayerSlotUI>(this, InvenUI);
+		if (InvenUIWidget)
+		{
+			InvenUIWidget->AddToViewport();
+		}
 	}
 	
 	// 2) Pawn 얻어서 연결
 	ASlimePlayer* SlimePlayer = Cast<ASlimePlayer>(GetPawn());
-	if (HUDWidget && SlimePlayer)
+	if (HUDWidget && InvenUIWidget && SlimePlayer)
 	{
 		HUDWidget->SetUpSlimePlayer(SlimePlayer);
+		InvenUIWidget->SetUpSlimePlayer(SlimePlayer);
 	}
 }
