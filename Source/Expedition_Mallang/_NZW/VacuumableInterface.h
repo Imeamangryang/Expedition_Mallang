@@ -23,6 +23,8 @@ class EXPEDITION_MALLANG_API IVacuumableInterface
 	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
 public:
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
+	void SetID(FName NewID);
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
 	FName GetID();
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
 	UClass* GetItemActorClass();

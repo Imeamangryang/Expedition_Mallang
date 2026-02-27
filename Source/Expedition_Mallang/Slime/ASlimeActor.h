@@ -59,6 +59,11 @@ public:
 	void SolveVolumeConstraints(float DeltaTime);
 	void SolveCollision(float DeltaTime);
 	
+	void RunXPBD_LOD0(float DeltaTime);
+	void RunXPBD_LOD1(float DeltaTime);
+	void RunXPBD_LOD2(float DeltaTime);
+	int32 CalculateLOD() const;
+	
 	FVector ComputeParticleCenter();
 	float ComputeVolume();
 	static void ComputeTriangleGradients(const FVector& A, const FVector& B, const FVector& C, FVector& GradA, FVector& GradB, FVector& GradC);
@@ -97,7 +102,7 @@ public:
 	UDynamicMeshComponent* DynamicMeshComp;
 	
 	// 물리 충돌용 Sphere Component
-	UPROPERTY(VisibleAnywhere, Category = "Physics")
+	UPROPERTY(VisibleAnywhere, Category = "Slime")
 	USphereComponent* SphereCollision;
 	
 	TArray<FSlimeParticle> Particles;
@@ -105,28 +110,30 @@ public:
 	TArray<FTriangle> Triangles;
 
 	// Sphere Collision 반지름
-	UPROPERTY(EditAnywhere, Category = "Physics")
+	UPROPERTY(EditAnywhere, Category = "Slime")
 	float SphereRadius = 60.0f;
 	
 	// 솔버 반복 횟수
 	UPROPERTY(EditAnywhere, Category = "Slime")
-	int32 SolverIterations = 5;
+	int32 SolverIterations_LOD0 = 5;
 	
-	// 부피 보존 강도
-	UPROPERTY(EditAnywhere, Category = "Slime", meta = (ClampMin = "0.0", UIMin = "0.0", UIMax = "1.0"))
-	float VolumeStiffness = 0.2f; 
+	UPROPERTY(EditAnywhere, Category = "Slime")
+	int32 SolverIterations_LOD1 = 2;
 	
 	// 부피 컴플라이언스
-	UPROPERTY(EditAnywhere, Category = "Slime", meta = (UIMin = "0.0", UIMax = "0.001", SliderExponent = "6"))
-	float VolumeCompliance = 1e-6f;
+	UPROPERTY(EditAnywhere, Category="Slime", meta=(ClampMin="1", ClampMax="10"))
+	int32 VolumeStiffness = 6;
+	float VolumeCompliance;
 
 	// 거리 컴플라이언스
-	UPROPERTY(EditAnywhere, Category = "Slime", meta = (UIMin = "0.0", UIMax = "0.001", SliderExponent = "6"))
-	float DistanceCompliance = 1e-6f;
+	UPROPERTY(EditAnywhere, Category="Slime", meta=(ClampMin="1", ClampMax="10"))
+	int32 DistanceStiffness = 6;
+	float DistanceCompliance;
 
 	// 충돌 컴플라이언스
-	UPROPERTY(EditAnywhere, Category = "Slime", meta = (UIMin = "0.0", UIMax = "0.001", SliderExponent = "6"))
-	float CollisionCompliance = 1e-6f; 
+	UPROPERTY(EditAnywhere, Category="Slime", meta=(ClampMin="1", ClampMax="10"))
+	int32 CollisionStiffness = 6;
+	float CollisionCompliance; 
 	
 	float RestVolume = 0.0f;			// 초기 부피
 	float VolumeLambda = 0.0f;			// 누적 라그랑주 승수
@@ -154,4 +161,7 @@ public:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FName ID = "101";
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 ActorLOD = 0; 
 };

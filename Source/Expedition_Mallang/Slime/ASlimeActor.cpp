@@ -8,12 +8,14 @@
 #include "StaticMeshAttributes.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 // Sets default values
 AASlimeActor::AASlimeActor()
 {
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.TickInterval = 0.016f;
 	
 	SphereCollision = CreateDefaultSubobject<USphereComponent>(TEXT("SphereCollision"));
 	RootComponent = SphereCollision;
@@ -93,82 +95,26 @@ void AASlimeActor::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	
-	FVector Center = ComputeParticleCenter();
+	ActorLOD = CalculateLOD();
 	
-	// Actor를 중심 위치로 이동
-	FVector ActorWorldPos = GetActorLocation();
-	SetActorLocation(ActorWorldPos + Center);
-	
-	// Particle이 초기화되지 않았으면 반환
-	if (Particles.Num() == 0)
+	if (ActorLOD == 3)
 	{
+		Destroy();
+		return;
+	}
+	if (ActorLOD == 2)
+	{
+		RunXPBD_LOD2(DeltaTime);
+		return;
+	}
+	if (ActorLOD == 1)
+	{
+		RunXPBD_LOD1(DeltaTime);
 		return;
 	}
 	
-	// Particle들을 반대로 이동 (로컬 유지)
-	for (FSlimeParticle& P : Particles)
-	{
-		P.Position -= Center;
-		P.CollisionLambda = 0.0f;
-	}
-	
-	// Lambda 초기화
-	for (FDistanceConstraint& C : Constraints)
-	{
-		C.Lambda = 0.0f;
-	}
-	VolumeLambda = 0.0f;
-	
-	/*
-	 * for all Particles i : 
-	 * v_i = v_i + g * dt		| 속도 업데이트
-	 * p_i_prev = p_i			| 현재 위치 저장
-	 * p_i = p_i + v_i * dt		| 위치 업데이트
-	 */
-	for (FSlimeParticle& P : Particles)
-	{
-		P.Velocity.Z += Gravity * DeltaTime;
-		P.PrevPosition = P.Position;
-		P.Position += P.Velocity * DeltaTime;
-	}
-	
-	/*
-	 * 제약 조건 해결 (SolverIterations 만큼 반복)
-	 * for all Constraints c :
-	 *	SolveConstraint(c)
-	 */
-	for (int32 Iter = 0; Iter < SolverIterations; Iter++)
-	{
-		// 거리 제약 조건 Solve
-		SolveDistanceConstraints(Constraints, DeltaTime);
-		
-		// 부피 보존 제약 조건 Solve
-		SolveVolumeConstraints(DeltaTime);
-		
-		// 충돌 조건 해결
-		SolveCollision(DeltaTime);
-	}
-	
-	/*
-	 * for all Particles i :
-	 * v_i = (p_i - p_i_prev) / dt	| 속도 업데이트
-	 */
-	for (FSlimeParticle& P : Particles)
-	{
-		P.Velocity = (P.Position - P.PrevPosition) / DeltaTime;
-	}
-	
-	DynamicMeshComp->GetDynamicMesh()->EditMesh(
-	[this](FDynamicMesh3& Mesh)
-	{
-		for (int32 vid : Mesh.VertexIndicesItr())
-		{
-			Mesh.SetVertex(vid, static_cast<FVector3d>(Particles[vid].Position));
-		}
-	},
-	EDynamicMeshChangeType::GeneralEdit,
-	EDynamicMeshAttributeChangeFlags::VertexPositions
-	);
+	// LOD 0
+	RunXPBD_LOD0(DeltaTime);
 }
 
 // StaticMesh를 DynamicMesh로 변환하는 유틸리티 함수
@@ -282,6 +228,11 @@ void AASlimeActor::InitializeParticlesAndConstraints()
 		Triangles.Add(T);
 	}
 	RestVolume = ComputeVolume();
+	
+	// Compliance 값 계산
+	VolumeCompliance = FMath::Pow(10.0f, -VolumeStiffness);
+	DistanceCompliance = FMath::Pow(10.0f, -DistanceStiffness);
+	CollisionCompliance = FMath::Pow(10.0f, -CollisionStiffness);
 }
 
 // 거리 제약 조건 해결 함수
@@ -410,6 +361,7 @@ void AASlimeActor::SolveCollision(float DeltaTime)
 	ObjParams.AddObjectTypesToQuery(ECC_WorldStatic);
 	ObjParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 	ObjParams.AddObjectTypesToQuery(ECC_Pawn);
+	ObjParams.AddObjectTypesToQuery(ECC_GameTraceChannel2);
 
 	bool bHit = GetWorld()->SweepMultiByObjectType(
 		Hits,
@@ -594,7 +546,7 @@ void AASlimeActor::SolveCollision(float DeltaTime)
 		}
 	}
 	
-	// Overlapping 된 액터 개수 출력
+	// // Overlapping 된 액터 개수 출력
 	// UE_LOG(LogTemp, Warning, TEXT("Overlapping Actors: %d"), OverlappingActors.Num());
 	// GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow,
 	// 	FString::Printf(TEXT("Overlapping Actors: %d"), OverlappingActors.Num()));
@@ -608,6 +560,213 @@ void AASlimeActor::SolveCollision(float DeltaTime)
 	// 			FString::Printf(TEXT(" - %s"), *Actor->GetName()));
 	// 	}
 	// }
+}
+
+void AASlimeActor::RunXPBD_LOD0(float DeltaTime)
+{
+	FVector Center = ComputeParticleCenter();
+	
+	// Actor를 중심 위치로 이동
+	FVector ActorWorldPos = GetActorLocation();
+	SetActorLocation(ActorWorldPos + Center);
+	
+	// Particle들을 반대로 이동 (로컬 유지)
+	for (FSlimeParticle& P : Particles)
+	{
+		P.Position -= Center;
+		P.CollisionLambda = 0.0f;
+	}
+	
+	// Lambda 초기화
+	for (FDistanceConstraint& C : Constraints)
+	{
+		C.Lambda = 0.0f;
+	}
+	VolumeLambda = 0.0f;
+	
+	/*
+	 * for all Particles i : 
+	 * v_i = v_i + g * dt		| 속도 업데이트
+	 * p_i_prev = p_i			| 현재 위치 저장
+	 * p_i = p_i + v_i * dt		| 위치 업데이트
+	 */
+	for (FSlimeParticle& P : Particles)
+	{
+		P.Velocity.Z += Gravity * DeltaTime;
+		P.PrevPosition = P.Position;
+		P.Position += P.Velocity * DeltaTime;
+	}
+	
+	/*
+	 * 제약 조건 해결 (SolverIterations 만큼 반복)
+	 * for all Constraints c :
+	 *	SolveConstraint(c)
+	 */
+	for (int32 Iter = 0; Iter < SolverIterations_LOD0; Iter++)
+	{
+		// 거리 제약 조건 Solve
+		SolveDistanceConstraints(Constraints, DeltaTime);
+		
+		// 부피 보존 제약 조건 Solve
+		SolveVolumeConstraints(DeltaTime);
+		
+		// 충돌 조건 해결
+		SolveCollision(DeltaTime);
+	}
+	
+	/*
+	 * for all Particles i :
+	 * v_i = (p_i - p_i_prev) / dt	| 속도 업데이트
+	 */
+	for (FSlimeParticle& P : Particles)
+	{
+		P.Velocity = (P.Position - P.PrevPosition) / DeltaTime;
+	}
+	
+	DynamicMeshComp->GetDynamicMesh()->EditMesh(
+	[this](FDynamicMesh3& Mesh)
+	{
+		for (int32 vid : Mesh.VertexIndicesItr())
+		{
+			Mesh.SetVertex(vid, static_cast<FVector3d>(Particles[vid].Position));
+		}
+	},
+	EDynamicMeshChangeType::GeneralEdit,
+	EDynamicMeshAttributeChangeFlags::VertexPositions
+	);
+}
+
+void AASlimeActor::RunXPBD_LOD1(float DeltaTime)
+{
+	FVector Center = ComputeParticleCenter();
+	
+	// Actor를 중심 위치로 이동
+	FVector ActorWorldPos = GetActorLocation();
+	SetActorLocation(ActorWorldPos + Center);
+	
+	// Particle들을 반대로 이동 (로컬 유지)
+	for (FSlimeParticle& P : Particles)
+	{
+		P.Position -= Center;
+		P.CollisionLambda = 0.0f;
+	}
+	
+	// Lambda 초기화
+	for (FDistanceConstraint& C : Constraints)
+	{
+		C.Lambda = 0.0f;
+	}
+	VolumeLambda = 0.0f;
+	
+	/*
+	 * for all Particles i : 
+	 * v_i = v_i + g * dt		| 속도 업데이트
+	 * p_i_prev = p_i			| 현재 위치 저장
+	 * p_i = p_i + v_i * dt		| 위치 업데이트
+	 */
+	for (FSlimeParticle& P : Particles)
+	{
+		P.Velocity.Z += Gravity * DeltaTime;
+		P.PrevPosition = P.Position;
+		P.Position += P.Velocity * DeltaTime;
+	}
+	
+	/*
+	 * 제약 조건 해결 (SolverIterations 만큼 반복)
+	 * for all Constraints c :
+	 *	SolveConstraint(c)
+	 */
+	for (int32 Iter = 0; Iter < SolverIterations_LOD1; Iter++)
+	{
+		// 거리 제약 조건 Solve
+		SolveDistanceConstraints(Constraints, DeltaTime);
+		
+		// 부피 보존 제약 조건 Solve
+		SolveVolumeConstraints(DeltaTime);
+		
+		// 충돌 조건 해결
+		SolveCollision(DeltaTime);
+	}
+	
+	/*
+	 * for all Particles i :
+	 * v_i = (p_i - p_i_prev) / dt	| 속도 업데이트
+	 */
+	for (FSlimeParticle& P : Particles)
+	{
+		P.Velocity = (P.Position - P.PrevPosition) / DeltaTime;
+	}
+	
+	DynamicMeshComp->GetDynamicMesh()->EditMesh(
+	[this](FDynamicMesh3& Mesh)
+	{
+		for (int32 vid : Mesh.VertexIndicesItr())
+		{
+			Mesh.SetVertex(vid, static_cast<FVector3d>(Particles[vid].Position));
+		}
+	},
+	EDynamicMeshChangeType::GeneralEdit,
+	EDynamicMeshAttributeChangeFlags::VertexPositions
+	);
+}
+
+void AASlimeActor::RunXPBD_LOD2(float DeltaTime)
+{
+	for (FSlimeParticle& P : Particles)
+	{
+		P.Velocity = FVector::ZeroVector;
+		P.PrevPosition = P.Position;
+	}
+}
+
+int32 AASlimeActor::CalculateLOD() const
+{
+	APlayerCameraManager* CamManager = UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0);
+	if (!CamManager) return 0;
+
+	FVector CamLoc = CamManager->GetCameraLocation();
+	
+	// 카메라와의 거리 및 방향 계산 (LOD 결정에 활용 가능)
+	float DistSq = FVector::DistSquared(CamLoc, GetActorLocation());
+	FVector ToActor = (GetActorLocation() - CamLoc).GetSafeNormal();
+	float Dot = FVector::DotProduct(CamManager->GetActorForwardVector(), ToActor);
+
+	constexpr float LOD1DistSq = 1000.f * 1000.f;
+	constexpr float LOD2DistSq = 4000.f * 4000.f;
+	constexpr float LOD3DistSq = 10000.f * 10000.f;
+
+	int32 LOD;
+	
+	// 거리 기반 LOD
+	if (DistSq < LOD1DistSq)
+	{
+		LOD = 0;
+	}
+	else if (DistSq < LOD2DistSq)
+	{
+		LOD = 1;
+	}
+	else if (DistSq < LOD3DistSq)
+	{
+		LOD = 2;
+	}
+	else
+	{
+		LOD = 3;
+	}
+	
+	// 뷰 안이면 LOD는 최대 1까지만 허용
+	if (const bool bInView = (Dot > 0.2f))
+	{
+		LOD = FMath::Min(LOD, 1);
+	}
+	else
+	{
+		// 뷰 밖이면 한 단계 강등
+		LOD = FMath::Clamp(LOD + 1, 0, 3);
+	}
+	
+	return LOD;
 }
 
 // Sphere Collision의 중심 위치 계산 함수

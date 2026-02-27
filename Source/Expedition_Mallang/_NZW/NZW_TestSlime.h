@@ -29,8 +29,9 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	
 	//. 인터페이스 함수
-	virtual FName GetID_Implementation();
-	virtual UClass* GetItemActorClass_Implementation();
+	virtual void SetID_Implementation(FName NewID) override;
+	virtual FName GetID_Implementation() override;
+	virtual UClass* GetItemActorClass_Implementation() override;
 	
 //! 변수
 	// 충돌체를 루트로 

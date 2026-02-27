@@ -16,6 +16,7 @@ ASlimePlayerController::ASlimePlayerController()
 	  SprintAction(nullptr),
 	  SpotLightAction(nullptr),
 		VacuumAction(nullptr),
+		FireAction(nullptr),
 	  Num_1Action(nullptr), Num_2Action(nullptr), Num_3Action(nullptr), Num_4Action(nullptr)
 {
 }

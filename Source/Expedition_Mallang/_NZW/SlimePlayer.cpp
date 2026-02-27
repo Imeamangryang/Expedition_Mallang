@@ -94,6 +94,7 @@ void ASlimePlayer::BeginPlay()
 	
 	CurrentSpeed = MoveSpeed;
 	
+	
 	//. Delegate 초기화 호출
 	OnUpdateHPInPercent.Broadcast(CurHP/MaxHP);
 	OnUpdateMPInPercent.Broadcast(CurMP/MaxMP);
@@ -113,36 +114,14 @@ void ASlimePlayer::Tick(float DeltaTime)
 	
 	//. 애니메이션에 넘겨주기 위한 Velocity
 	Velocity = FVector(Location.X, Location.Y, Location.Z) / DeltaTime;
-
-	//. 제트팩
-	if (CurMP <= 0)
-	{
-		CurMP = 0.0f;
-		bIsJetpackOn = false;
-	}
 	
-	if (GetCharacterMovement()->IsFalling())
-	{
-		if (bIsJetpackOn)
-		{
-			JetpackCurTime += DeltaTime;
-			//UE_LOG(LogTemp, Warning, TEXT("JetpackCurTime : %f"), JetpackCurTime);
-		}
-	}
-	else
-	{
-		JetpackCurTime = 0.0f;
-	}
-
-	if (bIsJetpackOn && JetpackCurTime >= JetpackStartTime)
-	{
-		FVector V = GetCharacterMovement()->Velocity;
-		V.Z += CurrentJetpackAcceleration * DeltaTime;
-		GetCharacterMovement()->Velocity = V;
-
-		CurMP -= JetpackLoseMPTime * DeltaTime;
-		OnUpdateMPInPercent.Broadcast(CurMP / 100.0f);
-	}
+	//. 제트팩
+	Jetpack(DeltaTime);
+	
+	//. MP 차오르는
+	if (bIsMPDecreasing) return;
+	FillMPStart(DeltaTime);
+	FillMP(DeltaTime);
 }
 
 // Called to bind functionality to input
@@ -188,6 +167,11 @@ void ASlimePlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 				EnhancedInput->BindAction(PlayerController->VacuumAction, ETriggerEvent::Completed, this, &ASlimePlayer::VacuumEnd);
 			}
 			
+			if (PlayerController->FireAction)
+			{
+				EnhancedInput->BindAction(PlayerController->FireAction, ETriggerEvent::Started, this, &ASlimePlayer::Fire);
+			}
+			
 			if (PlayerController->Num_1Action)
 			{
 				EnhancedInput->BindAction(PlayerController->Num_1Action, ETriggerEvent::Started, this, &ASlimePlayer::Num1Func);
@@ -211,6 +195,34 @@ void ASlimePlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	}
 }
 
+void ASlimePlayer::FillMPStart(float DeltaTime)
+{
+	if (CurMP >= MaxMP) return;
+	
+	// 시간이 흐르다가
+	CurFillMpTime += DeltaTime;
+	
+	// 만약 [현재시간]이 [생성시간]을 초과하면
+	if (CurFillMpTime > StartFillMpTime)
+	{
+		bIsFillingMp = true;
+	}
+}
+
+void ASlimePlayer::FillMP(float DeltaTime)
+{
+	if (bIsFillingMp == false) return;
+	
+	CurMP = FMath::Min(CurMP + MPFillSpeed * DeltaTime, MaxMP);
+	OnUpdateMPInPercent.Broadcast(CurMP / 100.0f);
+	
+	if (CurMP >= MaxMP)
+	{
+		bIsFillingMp = false;
+		CurFillMpTime = 0.0f;
+	}
+}
+
 void ASlimePlayer::Move(const FInputActionValue& Value)
 {
 	if (!GetController()) return;
@@ -220,33 +232,72 @@ void ASlimePlayer::Move(const FInputActionValue& Value)
 
 void ASlimePlayer::StartJump(const FInputActionValue& Value)
 {
-	if (Value.Get<bool>() && CurMP > 0.0f)
+	if (Value.Get<bool>())
 	{
 		Jump();
 		
-		bIsJetpackOn = true;
+		if (CurMP > 0.0f)
+		{
+			bIsJetpackOn = true;
 		
-		if (GetCharacterMovement()->IsFalling())
-		{ // 공중에서 눌렀을 경우
-			CurrentJetpackAcceleration = JetpackAcceleration + 500.0f;
-		}
-		else
-		{ // 땅에서 점프 했을 경우
-			CurrentJetpackAcceleration = JetpackAcceleration;
+			if (GetCharacterMovement()->IsFalling())
+			{ // 공중에서 눌렀을 경우
+				CurrentJetpackAcceleration = JetpackAcceleration + 500.0f;
+			}
+			else
+			{ // 땅에서 점프 했을 경우
+				CurrentJetpackAcceleration = JetpackAcceleration;
+			}
 		}
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("%f"), CurrentJetpackAcceleration);
+	// UE_LOG(LogTemp, Warning, TEXT("%f"), CurrentJetpackAcceleration);
 }
 
 void ASlimePlayer::EndJump(const FInputActionValue& Value)
 {
 	StopJumping();
 	bIsJetpackOn = false;
+	bIsMPDecreasing = false;
+	
 	CurrentJetpackAcceleration = 0.0f;
 	
 	JetpackCurTime = 0.0f;
 }
+
+void ASlimePlayer::Jetpack(float DeltaTime)
+{
+	if (CurMP <= 0)
+	{
+		CurMP = 0.0f;
+		bIsJetpackOn = false;
+		bIsMPDecreasing = false;
+	}
+	
+	if (GetCharacterMovement()->IsFalling())
+	{
+		if (bIsJetpackOn)
+		{
+			JetpackCurTime += DeltaTime;
+		}
+	}
+	else
+	{
+		JetpackCurTime = 0.0f;
+	}
+
+	if (bIsJetpackOn && JetpackCurTime >= JetpackStartTime)
+	{
+		FVector V = GetCharacterMovement()->Velocity;
+		V.Z += CurrentJetpackAcceleration * DeltaTime;
+		GetCharacterMovement()->Velocity = V;
+		
+		bIsMPDecreasing = true;
+		CurFillMpTime = 0.0f;
+		CurMP = FMath::Max(CurMP - JetpackLoseMPTime * DeltaTime, 0.0f);
+		OnUpdateMPInPercent.Broadcast(CurMP / 100.0f);
+	}
+} 
 
 void ASlimePlayer::Look(const FInputActionValue& Value)
 {
@@ -258,12 +309,18 @@ void ASlimePlayer::Look(const FInputActionValue& Value)
 
 void ASlimePlayer::Sprint(const FInputActionValue& Value)
 {
-	if (Value.Get<bool>())
+	if (Value.Get<bool>() && CurMP > 0.0f)
 	{
 		CurrentSpeed = SprintSpeed;
+		
+		bIsMPDecreasing = true;
+		CurFillMpTime = 0.0f;
+		CurMP = FMath::Max(CurMP - SprintLoseMPTime * GetWorld()->DeltaTimeSeconds, 0.0f);
+		OnUpdateMPInPercent.Broadcast(CurMP / 100.0f);
 	}
 	else
 	{
+		bIsMPDecreasing = false;
 		CurrentSpeed = MoveSpeed;
 	}
 }
@@ -272,7 +329,7 @@ void ASlimePlayer::FlashLight(const FInputActionValue& Value)
 {
 	bIsSpotLightOn = !bIsSpotLightOn;
 
-	UE_LOG(LogTemp, Warning, TEXT("Flashlight: %s"), bIsSpotLightOn ? TEXT("ON") : TEXT("OFF"));
+	// UE_LOG(LogTemp, Warning, TEXT("Flashlight: %s"), bIsSpotLightOn ? TEXT("ON") : TEXT("OFF"));
 	
 	SpotLight->SetIntensity(bIsSpotLightOn ? SpotLightIntensity : 0.0f);
 }
@@ -282,23 +339,28 @@ void ASlimePlayer::VacuumStart(const FInputActionValue& Value)
 	if (Value.Get<bool>())
 	{
 		SlimeVacpack->bIsVacuuming = true;
-		UE_LOG(LogTemp, Warning, TEXT("Vacuum Start!"));
+		// UE_LOG(LogTemp, Warning, TEXT("Vacuum Start!"));
 	}
 }
 
 void ASlimePlayer::VacuumEnd(const FInputActionValue& Value)
 {
 	SlimeVacpack->StopVacuuming();
-	UE_LOG(LogTemp, Warning, TEXT("Vacuum End!"));
+	// UE_LOG(LogTemp, Warning, TEXT("Vacuum End!"));
+}
+
+void ASlimePlayer::Fire(const FInputActionValue& Value)
+{
+	if (Value.Get<bool>())
+	{
+		SlimeVacpack->FireVacuumable();
+	}
 }
 
 void ASlimePlayer::Num1Func(const FInputActionValue& Value)
 {
 	if (Value.Get<bool>())
 	{
-		// CurHP -= 10.0f;
-		// OnUpdateHPInPercent.Broadcast(CurHP / 100.0f);
-		
 		SlimeVacpack->SelectSlot(0);
 	}
 }
@@ -307,9 +369,6 @@ void ASlimePlayer::Num2Func(const FInputActionValue& Value)
 {
 	if (Value.Get<bool>())
 	{
-		// CurHP += 10.0f;
-		// OnUpdateHPInPercent.Broadcast(CurHP / 100.0f);
-		
 		SlimeVacpack->SelectSlot(1);
 	}
 }
@@ -318,9 +377,6 @@ void ASlimePlayer::Num3Func(const FInputActionValue& Value)
 {
 	if (Value.Get<bool>())
 	{
-		// CurMP += 10.0f; 
-		// OnUpdateMPInPercent.Broadcast(CurMP / 100.0f);
-		
 		SlimeVacpack->SelectSlot(2);
 	}
 }
@@ -338,3 +394,11 @@ void ASlimePlayer::UpdateNewbucks(int32 AddNewbucks)
 	Newbucks += AddNewbucks;
 	OnUpdateNewbucks.Broadcast(Newbucks);
 }
+
+void ASlimePlayer::UpdateHP(float Hp)
+{
+	CurHP -= Hp;
+	CurHP = FMath::Max(CurHP, 0.0f);
+	OnUpdateHPInPercent.Broadcast(CurHP / 100.0f);
+}
+

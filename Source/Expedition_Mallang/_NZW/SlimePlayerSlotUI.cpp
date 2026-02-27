@@ -7,7 +7,7 @@
 
 void USlimePlayerSlotUI::SetUpSlimePlayer(ASlimePlayer* SlimePlayer)
 {
-	UE_LOG(LogTemp, Warning, TEXT("HUD SetUpSlimePlayer called. Player=%s"),
+	UE_LOG(LogTemp, Warning, TEXT("SlotUI SetUpSlimePlayer called. Player=%s"),
 	SlimePlayer ? *SlimePlayer->GetName() : TEXT("NULL"));
 	
 	SlimePlayer->OnVacuuming.AddDynamic(this, &USlimePlayerSlotUI::OnUpdateSlotUI);
@@ -15,9 +15,9 @@ void USlimePlayerSlotUI::SetUpSlimePlayer(ASlimePlayer* SlimePlayer)
 	SlimePlayer->OnItemInfo.AddDynamic(this, &USlimePlayerSlotUI::OnItemInfoUI);
 }
 
-void USlimePlayerSlotUI::OnSelectSlot(int32 SlotNum)
+void USlimePlayerSlotUI::OnSelectSlot(int32 SlotNum, int32 PrevSlotNum)
 {
-	BP_SelectSlot_UI(SlotNum);
+	BP_SelectSlot_UI(SlotNum, PrevSlotNum);
 }
 
 void USlimePlayerSlotUI::OnUpdateSlotUI(FName ID, int32 Count, int32 SlotNum)

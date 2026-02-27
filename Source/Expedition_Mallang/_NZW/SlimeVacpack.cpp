@@ -8,7 +8,7 @@
 #include "Components/ArrowComponent.h"
 #include "Components/SphereComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
-#include "Runtime/VerseCompiler/Public/uLang/Parser/VerseGrammar.h"
+#include "Slime/ASlimeActor.h"
 
 // Sets default values
 ASlimeVacpack::ASlimeVacpack()
@@ -62,8 +62,9 @@ void ASlimeVacpack::BeginPlay()
 {
 	Super::BeginPlay();
 	
-	//. 흡입을 위해 충돌 채널 저장
+	//. 충돌 채널 저장
 	VacuumObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_GameTraceChannel2));
+	VacuumObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_PhysicsBody));
 	
 	//. 오버랩 활성화
 	VacuumCollision->OnComponentBeginOverlap.AddDynamic(this, &ASlimeVacpack::OnComponentBeginOverlap);
@@ -81,6 +82,7 @@ void ASlimeVacpack::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	
+	//. Item을 바라보면 정보를 띄우도록
 	ShowItemInformation();
 	
 	//. bIsVacuuming은 RMB 누를 때 true, 뗄 때 false (Slime Player에서 제어)
@@ -95,25 +97,73 @@ void ASlimeVacpack::Tick(float DeltaTime)
 	}
 }
 
+void ASlimeVacpack::SelectSlot(int32 SlotNum)
+{
+	//. 선택한 슬롯 넘버
+	SelectSlotNumber = SlotNum;
+	
+	//. UI 선택 Delegate Broadcast
+	SlimePlayer->OnSelectSlot.Broadcast(SelectSlotNumber, PrevSelectSlot);
+	
+	//. UI Animation을 위한 저장
+	PrevSelectSlot = SelectSlotNumber;
+	
+	// UE_LOG(LogTemp, Warning, TEXT("\nSlotNum: %d, ID: %s, Count: %d"), 
+	// 	SelectSlotNumber, *Inventory[SelectSlotNumber].ID.ToString(), Inventory[SelectSlotNumber].Count);
+}
+
+int32 ASlimeVacpack::FindEmptySlot(FName ID)
+{	
+	// for (int32 i = 0; i < 4; i++)
+	// 	UE_LOG(LogTemp, Warning, TEXT("SlotNum: %d, ID: %s, Count: %d"), i, *Inventory[i].ID.ToString(), Inventory[i].Count);
+	
+	for (int32 i = 0; i < 4; i++)
+	{
+		//. ID가 같은 경우
+		if (Inventory[i].ID.IsEqual(ID))
+		{
+			//. 개수가 20개 이하인 경우
+			if (Inventory[i].Count < 20) //! Max개수 변수화
+				return i;
+			
+			//. 개수가 20개 초과인 경우
+			return INDEX_NONE;	
+		}
+		
+		//. 비어있는 슬롯칸이 있는 경우
+		if (Inventory[i].Count <= 0)
+			return i;
+	}
+
+	//. 슬롯이 꽉 차있는 경우	
+	return INDEX_NONE;	
+}
+
 void ASlimeVacpack::OnComponentBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	// if (OtherActor == this) return;
-	// if (IsValid(GetOwner()) && OtherActor == GetOwner()) return;
 	//. Interface를 갖고있는 Actor인지 확인하고 -> 아이템 아이디 가져오는 Interface
 	if (!OtherActor->Implements<UVacuumableInterface>()) return;
 	FName ID = IVacuumableInterface::Execute_GetID(OtherActor);
-	//// UE_LOG(LogTemp, Warning, TEXT("ID: %s"), *ID.ToString());
+	UE_LOG(LogTemp, Warning, TEXT("ID: %s"), *ID.ToString());
 	
 	//. 채울 수 있는 슬롯 확인
 	int32 SlotNum = FindEmptySlot(ID);
+	
+	UE_LOG(LogTemp, Warning, TEXT("SlotNum: %d"), SlotNum);
 	
 	//. 없는 경우
 	if (SlotNum == INDEX_NONE) return;
 	
 	//. 이미 FindEmptySlot에서 개수 확인했으니  습득 했다면 개수 ++
+	Inventory[SlotNum].ItemClass = OtherActor->GetClass();
 	Inventory[SlotNum].ID = ID;
 	Inventory[SlotNum].Count++;
+	
+	//. 들어가는 슬롯 확인
+	SelectSlot(SlotNum);
+	// UE_LOG(LogTemp, Warning, TEXT("\nSlotNum: %d, ID: %s, Count: %d"), 
+	// 	SlotNum, *Inventory[SlotNum].ID.ToString(), Inventory[SlotNum].Count);
 	
 	//. 습득 Delegate 실행 (UI에 띄우기 위한 매개변수)
 	SlimePlayer->OnVacuuming.Broadcast(ID, Inventory[SlotNum].Count, SlotNum);
@@ -127,12 +177,16 @@ void ASlimeVacpack::ShowItemInformation()
 	//. 마우스 포인터로 가리키면 정보 출력
 	FHitResult HitResult;
 	FVector Start = Muzzle->GetComponentLocation();
-	FVector End = Start + (Muzzle->GetForwardVector() * 500.f);
+	FVector End = Start + (Muzzle->GetForwardVector() * 500.f); //! LineTrace 거리 변수화
+	
 	FCollisionQueryParams Params;
 	Params.AddIgnoredActor(this);
+	FCollisionObjectQueryParams ObjParams;
+	ObjParams.AddObjectTypesToQuery(ECC_GameTraceChannel2);
+	ObjParams.AddObjectTypesToQuery(ECC_PhysicsBody);
 	
-	bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_EngineTraceChannel2, Params);
-	//DrawDebugLine(GetWorld(), Start, End, FColor::Green, false, 1.0f, 0, 2.0f);
+	// DrawDebugLine(GetWorld(), Start, End, FColor::Green, false, 1.0f, 0, 2.0f);
+	bool bHit = GetWorld()->LineTraceSingleByObjectType(HitResult, Start, End, ObjParams, Params);
 	
 	//. 감지된 액터가 없거나, 있더라도 VacuumableInterface 가 없는 액터라면 출력 없애고 넘어감
 	if (!bHit || !HitResult.GetActor()->Implements<UVacuumableInterface>())
@@ -141,40 +195,10 @@ void ASlimeVacpack::ShowItemInformation()
 		return;
 	}
 	
-	//UE_LOG(LogTemp, Warning, TEXT("ID: %s"), *HitResult.GetActor()->GetName());
+	// UE_LOG(LogTemp, Warning, TEXT("ID: %s"), *HitResult.GetActor()->GetName());
 	FName ID = IVacuumableInterface::Execute_GetID(HitResult.GetActor());
 	SlimePlayer->OnItemInfo.Broadcast(ID);
 }
-
-int32 ASlimeVacpack::FindEmptySlot(FName ID)
-{
-	for (int32 i = 0; i < 4; i++)
-	{
-		//. 비어있는 슬롯칸이 있는 경우
-		if (Inventory[i].Count <= 0)
-		{
-			return i;
-		}
-		
-		//. 슬롯이 비어있지는 않지만 ID가 같고 개수가 20개 미만인 경우
-		if (Inventory[i].ID.IsEqual(ID) && Inventory[i].Count < 20)
-		{
-			return i;
-		}
-	}
-
-	//. 슬롯이 꽉 차있는 경우	
-	return INDEX_NONE;	
-}
-
-void ASlimeVacpack::SelectSlot(int32 SlotNum)
-{
-	// todo : 1234버튼으로 인벤토리 슬롯 선택 -> Animation?
-	SelectSlotNumber = SlotNum;
-	// 플레이어 델리게이트 바인딩 -> 아니면 브로드캐스팅
-}
-
-// todo : 발사 - 슬라임->안에 있는 Impulse함수, 나머지는 AddImpulse 
 
 // 감지거리 안에 들어온 Vacuumable Actor 찾기
 void ASlimeVacpack::VacuumDetecting()
@@ -225,7 +249,7 @@ void ASlimeVacpack::VacuumDetecting()
 // 흡입 물리 계산 (스프링-댐퍼 + 소용돌이)
 void ASlimeVacpack::Vacuuming(float DeltaTime)
 {
-	UE_LOG(LogTemp, Warning, TEXT("이제 흡입 물리 ~ Time"));
+	// UE_LOG(LogTemp, Warning, TEXT("이제 흡입 물리 ~ Time"));
 	
 	//* ─────────────────────────────────────────────────────────────────
 	//* 1. 노즐 기준 좌표 분해
@@ -440,4 +464,40 @@ void ASlimeVacpack::StopVacuuming()
 	//   이전에 가속되어 있던 속도가 남아서 처음부터 튀어나가는 현상이 생김
 	VacuumLateralVelocities.Empty();	// 측면(스프링-댐퍼) 속도
 	VacuumAxisVelocities.Empty();		// 축 방향(흡입) 속도
+}
+
+// LMB 클릭 시 선택 되어있는 슬롯에 아이템이 있고 개수가 충분하면 하나씩 발사 (Delay 0.5초)
+void ASlimeVacpack::FireVacuumable()
+{
+	//. 선택 되어있는 슬롯에 아이템이 존재 하지 않으면 return
+	if (Inventory[SelectSlotNumber].Count <= 0)	return;
+	
+	FVector Start = Muzzle->GetComponentLocation() + Muzzle->GetForwardVector() * 100.f; //! FireSpawnPoint 변수화 
+	AActor* Item = GetWorld()->SpawnActor<AActor>(
+		Inventory[SelectSlotNumber].ItemClass, Start, FRotator::ZeroRotator);
+	
+	if (AASlimeActor* Slime = Cast<AASlimeActor>(Item))
+	{
+		Slime->ID = Inventory[SelectSlotNumber].ID;
+		Slime->ApplySlimeMovementImpulse(Muzzle->GetForwardVector(), 10000.0f, 0.f);
+	}
+	else if (UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(Item->GetRootComponent()))
+	{
+		IVacuumableInterface::Execute_SetID(Item, Inventory[SelectSlotNumber].ID);
+		Primitive->AddImpulse(Muzzle->GetForwardVector() * 1000.0f,NAME_None, true); //! ImpulseForce 변수화
+	}
+	
+	//. 개수 제거 후 Delegate 실행 (UI에 띄우기 위한 매개변수)
+	Inventory[SelectSlotNumber].Count--;
+	
+	if (Inventory[SelectSlotNumber].Count <= 0)
+	{
+		Inventory[SelectSlotNumber].ItemClass = nullptr;
+		Inventory[SelectSlotNumber].ID = "100";
+		Inventory[SelectSlotNumber].Count = 0;
+	}
+
+	// UE_LOG(LogTemp, Error, TEXT("\nSlotNum: %d, ID: %s, Count: %d"), 
+	// 	SelectSlotNumber, *Inventory[SelectSlotNumber].ID.ToString(), Inventory[SelectSlotNumber].Count);
+	SlimePlayer->OnVacuuming.Broadcast(Inventory[SelectSlotNumber].ID, Inventory[SelectSlotNumber].Count, SelectSlotNumber);
 }

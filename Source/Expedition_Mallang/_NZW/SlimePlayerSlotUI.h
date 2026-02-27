@@ -18,7 +18,7 @@ public:
 	
 	/** Delegate 연결 함수 */
 	UFUNCTION()
-	void OnSelectSlot(int32 SlotNum);
+	void OnSelectSlot(int32 SlotNum, int32 PrevSlotNum);
 	UFUNCTION()
 	void OnUpdateSlotUI(FName ID, int32 Count, int32 SlotNum);
 	UFUNCTION()
@@ -28,7 +28,7 @@ public:
 protected:
 	/** Blueprint에서 실행 할 함수 */
 	UFUNCTION(BlueprintImplementableEvent, Category="Slime", meta = (DisplayName = "SelectSlot_UI"))
-	void BP_SelectSlot_UI(int32 SlotNum);
+	void BP_SelectSlot_UI(int32 SlotNum, int32 PrevSlotNum);
 	
 	UFUNCTION(BlueprintImplementableEvent, Category="Slime", meta = (DisplayName = "Update Slot_1 UI"))
 	void BP_UpdateSlot_1_UI(FName ID, int32 Count);

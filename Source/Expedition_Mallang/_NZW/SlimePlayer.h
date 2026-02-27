@@ -23,7 +23,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FUpdateNB_D, int32, Newbucks);
 //. ItemInfo
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FItemInfo_D, FName, ID);
 //. ItemSlot
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSelectSlot, int32, SlotNum);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSelectSlot, int32, CurSlotNum, int32, PrevSlotNum);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FVacuumed_D, FName, ID, int32, Count, int32, SlotNum);
 
 UCLASS()
@@ -74,6 +74,9 @@ public:
 	void VacuumEnd(const FInputActionValue& Value);
 	
 	UFUNCTION()
+	void Fire(const FInputActionValue& Value);
+	
+	UFUNCTION()
 	void Num1Func(const FInputActionValue& Value);
 	UFUNCTION()
 	void Num2Func(const FInputActionValue& Value);
@@ -84,6 +87,15 @@ public:
 	
 	UFUNCTION(BlueprintCallable)
 	void UpdateNewbucks(int32 AddNewbucks);
+
+	UFUNCTION(BlueprintCallable)
+	void UpdateHP(float Hp);
+
+protected:
+	void Jetpack(float DeltaTime);
+	
+	void FillMPStart(float DeltaTime);
+	void FillMP(float DeltaTime);
 	
 /*! 변수 */
 protected:
@@ -107,6 +119,17 @@ public:
 	float CurMP;	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Stat")
 	int32 Newbucks;	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Stat")
+	float SprintLoseMPTime = 5.0f;	
+	
+	/** MP */
+	bool bIsMPDecreasing = false;
+	bool bIsFillingMp = false;
+	float CurFillMpTime = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Stat")
+	float StartFillMpTime = 2.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Stat")
+	float MPFillSpeed = 100.0f;
 	
 	/** Movement Settings */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Movement")
@@ -114,9 +137,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Movement")
 	float CurrentSpeed = 0.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Movement")
-	float MoveSpeed = 300.f;
+	float MoveSpeed = 500.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Movement")
-	float SprintSpeed = 500.f;
+	float SprintSpeed = 1000.f; 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Movement")
 	FVector Velocity;
 	
@@ -125,6 +148,7 @@ public:
 	ASlimeVacpack* SlimeVacpack;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Vacpack")
 	FName SlimePlayerWeaponSocket = FName("HandGrip_R");
+	// int32 CurSelectSlot = -1;
 	
 	/** SpotLight Settings */
 	UPROPERTY(BlueprintReadOnly, Category = "SlimePlayer|Equipment")
@@ -140,12 +164,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Equipment")
 	float JetpackAcceleration = 1200.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Equipment")
-	float JetpackLoseMPTime = 100.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Equipment")
 	float JetpackCurTime = 0.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Equipment")
 	float JetpackStartTime = 0.4f;
-	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Equipment")
+	float JetpackLoseMPTime = 10.0f;
+
 	/** Delegate Settings */
 	UPROPERTY(BlueprintAssignable, Category="SlimePlayer|UI")
 	FUpdateHP_D OnUpdateHPInPercent;

@@ -15,6 +15,9 @@ struct FSlot
 	GENERATED_BODY()
 	
 public:
+	UPROPERTY()
+	UClass* ItemClass = nullptr;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FName ID = TEXT("");
 	
@@ -67,6 +70,9 @@ public:
 	UFUNCTION()
 	void SelectSlot(int32 SlotNum);
 	
+	UFUNCTION()
+	void FireVacuumable();
+	
 /*! 변수 */
 public:
 	UPROPERTY()
@@ -84,7 +90,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Inventory", meta=(AllowPrivateAccess="true"))
 	TArray<FSlot> Inventory; 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Inventory", meta=(AllowPrivateAccess="true"))
-	int32 SelectSlotNumber = -1;
+	int32 SelectSlotNumber = 0;
+	int32 PrevSelectSlot = -1;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Detect", meta=(AllowPrivateAccess="true"))
 	bool bIsVacuuming = false;
@@ -93,8 +100,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Detect", meta=(AllowPrivateAccess="true"))
 	float DetectFOV = 30.0f;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vacpack|Detect")
 	TArray<TEnumAsByte<EObjectTypeQuery>> VacuumObjectTypes;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Vacpack|Detect")
 	TArray<AActor*> CurrentVacuumTargets;
 	

@@ -39,6 +39,11 @@ void ANZW_TestSlime::Tick(float DeltaTime)
 
 }
 
+void ANZW_TestSlime::SetID_Implementation(FName NewID)
+{
+	this->ID = NewID;
+}
+
 FName ANZW_TestSlime::GetID_Implementation()
 {
 	return ID;
