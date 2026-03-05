@@ -1,0 +1,8 @@
+﻿Name,ID,ItemName,VacuumType,FoodType,ImageIcon
+101,101,블루슬라임,Slime,Omnivorous,/Script/Engine.Texture2D'/Game/_NZW/04_Assets/UI/Slime_BlueSlime.Slime_BlueSlime'
+102,102,골드슬라임,Slime,Fruit,/Script/Engine.Texture2D'/Game/_NZW/04_Assets/UI/Slime_GoldSlime.Slime_GoldSlime'
+103,103,그린슬라임,Slime,Vegetable,/Script/Engine.Texture2D'/Game/_NZW/04_Assets/UI/Slime_GreenSlime.Slime_GreenSlime'
+201,201,하트비트,Food,Vegetable,/Script/Engine.Texture2D'/Game/_NZW/04_Assets/UI/Slime_HeartBeat.Slime_HeartBeat'
+202,202,큐브베리,Food,Fruit,/Script/Engine.Texture2D'/Game/_NZW/04_Assets/UI/Slime_Cuberry.Slime_Cuberry'
+301,301,핑크플로트,Plort,None,/Script/Engine.Texture2D'/Game/_NZW/04_Assets/UI/Slime_PinkPlort.Slime_PinkPlort'
+302,302,골드플로트,Plort,None,/Script/Engine.Texture2D'/Game/_NZW/04_Assets/UI/Slime_GoldPlort.Slime_GoldPlort'

@@ -5,13 +5,18 @@
 #include <ThirdParty/ShaderConductor/ShaderConductor/External/DirectXShaderCompiler/include/dxc/DXIL/DxilConstants.h>
 
 #include "EnhancedInputComponent.h"
+#include "InteractableInterface.h"
+#include "SlimeGameInstance.h"
 #include "SlimePlayerController.h"
+#include "SlimePlayerSlotUI.h"
+#include "SlimePlayerStatUI.h"
+#include "SlimeShopUI.h"
 #include "SlimeVacpack.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SpotLightComponent.h"
+#include "Engine/OverlapResult.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "GameFramework/GameSession.h"
 
 // Sets default values
 ASlimePlayer::ASlimePlayer()
@@ -68,6 +73,8 @@ void ASlimePlayer::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	PC = Cast<ASlimePlayerController>(GetWorld()->GetFirstPlayerController());
+	
 	//. Vacpack 생성 및 부착
 	if (SlimeVacpack == nullptr)
 	{
@@ -93,12 +100,13 @@ void ASlimePlayer::BeginPlay()
 	CurMP = MaxMP;
 	
 	CurrentSpeed = MoveSpeed;
-	
+	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed;
 	
 	//. Delegate 초기화 호출
-	OnUpdateHPInPercent.Broadcast(CurHP/MaxHP);
-	OnUpdateMPInPercent.Broadcast(CurMP/MaxMP);
+	OnUpdateHPInPercent.Broadcast(CurHP, MaxHP);
+	OnUpdateMPInPercent.Broadcast(CurMP, MaxMP);
 	OnUpdateNewbucks.Broadcast(Newbucks);
+	OnShopInteraction.Broadcast(CurLevel);	
 }
 
 // Called every frame
@@ -106,14 +114,15 @@ void ASlimePlayer::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	
-	//. Movement
-	FVector Distance = GetActorForwardVector() * MoveInput.X + GetActorRightVector() * MoveInput.Y;
-	Distance.Normalize();
-	FVector Location = Distance * CurrentSpeed * DeltaTime;
-	SetActorLocation(GetActorLocation() + Location);
+	//. Movement 물리적으로 처리하면 충돌처리가 이상해짐 Character에 있는 Movement 사용하는것이 더 좋음 
+	// FVector Distance = GetActorForwardVector() * MoveInput.X + GetActorRightVector() * MoveInput.Y;
+	// Distance.Normalize();
+	// FVector Location = Distance * CurrentSpeed * DeltaTime;
+	// SetActorLocation(GetActorLocation() + Location);
 	
 	//. 애니메이션에 넘겨주기 위한 Velocity
-	Velocity = FVector(Location.X, Location.Y, Location.Z) / DeltaTime;
+	// Velocity = FVector(Location.X, Location.Y, Location.Z) / DeltaTime;
+	Velocity = GetCharacterMovement()->Velocity;
 	
 	//. 제트팩
 	Jetpack(DeltaTime);
@@ -170,6 +179,11 @@ void ASlimePlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 			if (PlayerController->FireAction)
 			{
 				EnhancedInput->BindAction(PlayerController->FireAction, ETriggerEvent::Started, this, &ASlimePlayer::Fire);
+			}			
+			
+			if (PlayerController->WaveCannonAction)
+			{
+				EnhancedInput->BindAction(PlayerController->WaveCannonAction, ETriggerEvent::Started, this, &ASlimePlayer::WaveCannon);
 			}
 			
 			if (PlayerController->Num_1Action)
@@ -190,6 +204,22 @@ void ASlimePlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 			if (PlayerController->Num_4Action)
 			{
 				EnhancedInput->BindAction(PlayerController->Num_4Action, ETriggerEvent::Started, this, &ASlimePlayer::Num4Func);
+			}
+						
+			if (PlayerController->InteractAction)
+			{
+				EnhancedInput->BindAction(PlayerController->InteractAction, ETriggerEvent::Started, this, &ASlimePlayer::Interact);
+				EnhancedInput->BindAction(PlayerController->InteractAction, ETriggerEvent::Started, this, &ASlimePlayer::ShopInteract);
+			}
+			
+			if (PlayerController->EnterAction)
+			{
+				EnhancedInput->BindAction(PlayerController->EnterAction, ETriggerEvent::Started, this, &ASlimePlayer::EnterFunc);                                                                                                               
+			}
+			
+			if (PlayerController->ExitAction)
+			{
+				EnhancedInput->BindAction(PlayerController->ExitAction, ETriggerEvent::Started, this, &ASlimePlayer::ExitShop);                                                                                                               
 			}
 		}
 	}
@@ -214,7 +244,7 @@ void ASlimePlayer::FillMP(float DeltaTime)
 	if (bIsFillingMp == false) return;
 	
 	CurMP = FMath::Min(CurMP + MPFillSpeed * DeltaTime, MaxMP);
-	OnUpdateMPInPercent.Broadcast(CurMP / 100.0f);
+	OnUpdateMPInPercent.Broadcast(CurMP, MaxMP);
 	
 	if (CurMP >= MaxMP)
 	{
@@ -228,6 +258,14 @@ void ASlimePlayer::Move(const FInputActionValue& Value)
 	if (!GetController()) return;
 	
 	MoveInput = Value.Get<FVector2D>();
+	
+	const FRotator YawRotation(0.0f, GetControlRotation().Yaw, 0.0f);
+	const FVector ForwardDir = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+	const FVector RightDir   = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+
+	// CharacterMovementComponent에 이동 입력 전달 (벽 충돌·경사면 자동 처리)
+	AddMovementInput(ForwardDir, MoveInput.X);
+	AddMovementInput(RightDir,   MoveInput.Y);
 }
 
 void ASlimePlayer::StartJump(const FInputActionValue& Value)
@@ -294,8 +332,9 @@ void ASlimePlayer::Jetpack(float DeltaTime)
 		
 		bIsMPDecreasing = true;
 		CurFillMpTime = 0.0f;
-		CurMP = FMath::Max(CurMP - JetpackLoseMPTime * DeltaTime, 0.0f);
-		OnUpdateMPInPercent.Broadcast(CurMP / 100.0f);
+		UpdateMP(JetpackLoseMPTime * DeltaTime);
+	//!	CurMP = FMath::Max(CurMP - JetpackLoseMPTime * DeltaTime, 0.0f);
+	//!	OnUpdateMPInPercent.Broadcast(CurMP, MaxMP);
 	}
 } 
 
@@ -303,8 +342,8 @@ void ASlimePlayer::Look(const FInputActionValue& Value)
 {
 	FVector2D LookInput = Value.Get<FVector2D>();
 	
-	AddControllerYawInput(LookInput.X);	
-	AddControllerPitchInput(LookInput.Y);
+	AddControllerYawInput(LookInput.X * MouseMoveSpeed * GetWorld()->DeltaTimeSeconds);	
+	AddControllerPitchInput(LookInput.Y * MouseMoveSpeed * GetWorld()->DeltaTimeSeconds);
 }
 
 void ASlimePlayer::Sprint(const FInputActionValue& Value)
@@ -312,16 +351,19 @@ void ASlimePlayer::Sprint(const FInputActionValue& Value)
 	if (Value.Get<bool>() && CurMP > 0.0f)
 	{
 		CurrentSpeed = SprintSpeed;
+		GetCharacterMovement()->MaxWalkSpeed = SprintSpeed;
 		
 		bIsMPDecreasing = true;
 		CurFillMpTime = 0.0f;
-		CurMP = FMath::Max(CurMP - SprintLoseMPTime * GetWorld()->DeltaTimeSeconds, 0.0f);
-		OnUpdateMPInPercent.Broadcast(CurMP / 100.0f);
+		UpdateMP(SprintLoseMPTime * GetWorld()->DeltaTimeSeconds);
+	//!	CurMP = FMath::Max(CurMP - SprintLoseMPTime * GetWorld()->DeltaTimeSeconds, 0.0f);
+		OnUpdateMPInPercent.Broadcast(CurMP, MaxMP);
 	}
 	else
 	{
 		bIsMPDecreasing = false;
 		CurrentSpeed = MoveSpeed;
+		GetCharacterMovement()->MaxWalkSpeed = MoveSpeed;
 	}
 }
 
@@ -357,6 +399,24 @@ void ASlimePlayer::Fire(const FInputActionValue& Value)
 	}
 }
 
+void ASlimePlayer::WaveCannon(const FInputActionValue& Value)
+{
+	if (Value.Get<bool>())
+	{
+		SlimeVacpack->WaveCannon();
+		
+		bIsMPDecreasing = true;
+		CurFillMpTime = 0.0f;
+		UpdateMP(WaveCannonMP);
+	//!	CurMP -= WaveCannonMP;
+	//!	OnUpdateMPInPercent.Broadcast(CurMP, MaxMP);
+	}
+	else
+	{
+		bIsMPDecreasing = false;
+	}
+}
+
 void ASlimePlayer::Num1Func(const FInputActionValue& Value)
 {
 	if (Value.Get<bool>())
@@ -389,6 +449,134 @@ void ASlimePlayer::Num4Func(const FInputActionValue& Value)
 	}
 }
 
+void ASlimePlayer::Interact(const FInputActionValue& Value)
+{
+	if (Value.Get<bool>())
+	{
+		FVector Start = GetActorLocation();
+		float Radius = 250.0f;
+
+		TArray<FOverlapResult> Overlaps;
+
+		FCollisionQueryParams QueryParams;
+		QueryParams.AddIgnoredActor(this);
+
+		FCollisionObjectQueryParams ObjectQueryParams;
+		ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
+		ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
+		ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+
+		bool bHit = GetWorld()->OverlapMultiByObjectType(
+			Overlaps,
+			Start,
+			FQuat::Identity,
+			ObjectQueryParams,
+			FCollisionShape::MakeSphere(Radius),
+			QueryParams
+		);
+		
+		DrawDebugSphere(GetWorld(), Start, Radius, 12, FColor::Green, false, 2.0f);
+
+		if (!bHit)
+		{
+			return;
+		}
+
+		for (const FOverlapResult& Result : Overlaps)
+		{
+			AActor* HitActor = Result.GetActor();
+			if (!HitActor)
+			{
+				continue;
+			}
+
+			// 인터페이스 체크
+			if (HitActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
+			{
+				PC->SlotUIWidget->SetVisibility(ESlateVisibility::Hidden);
+				IInteractableInterface::Execute_Interact(HitActor);
+				break;
+			}
+		}
+	}
+}
+
+void ASlimePlayer::EnterFunc(const FInputActionValue& Value)
+{
+	if (Value.Get<bool>())
+	{
+		// 레벨업 쇼핑 
+		if (bShopping)
+		{
+			USlimeGameInstance* GI = Cast<USlimeGameInstance>(GetGameInstance());
+			
+			FPlayerStat NextPlayerStat;
+			int32 NextLevel = CurLevel+1;
+			
+			if (!GI->GetStatData(NextLevel, NextPlayerStat))
+			{
+				UE_LOG(LogTemp, Error, TEXT("다음 레벨 없음!!!"));
+				return;
+			}
+			
+			if (NextPlayerStat.Cost <= Newbucks)
+			{
+				//CurLevel = NextLevel;
+				
+				UpdateNewbucks(-NextPlayerStat.Cost);
+				
+				GI->ApplyUpgrade(CurLevel, NextPlayerStat);
+				OnShopInteraction.Broadcast(CurLevel);
+				
+				MaxHP = NextPlayerStat.MaxHP;
+				CurHP = MaxHP;
+				OnUpdateHPInPercent.Broadcast(CurMP, MaxMP);
+				
+				MaxMP = NextPlayerStat.MaxMP;
+				CurMP = MaxMP;
+				OnUpdateMPInPercent.Broadcast(CurMP, MaxMP);
+				
+				SlimeVacpack->SetWaveCannonForce(NextPlayerStat.WavePower);
+				
+				UE_LOG(LogTemp, Error, TEXT("레벨업 성공"));
+			}
+			else
+			{
+				OnShopNotEnoughNewbucks.Broadcast();
+				UE_LOG(LogTemp, Error, TEXT("레벨업 실패!!!"));
+			}
+			
+			return;
+		}
+		
+		// 다이얼로그 Delegate
+		OnInteract.Broadcast();
+	}
+}
+
+void ASlimePlayer::ShopInteract(const FInputActionValue& Value)
+{
+	if (Value.Get<bool>())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Shop Interact 들어옴"));
+		OnShopInteraction.Broadcast(CurLevel);
+	}
+}
+
+void ASlimePlayer::ExitShop(const FInputActionValue& Value)
+{
+	if (Value.Get<bool>())
+	{ 
+		UE_LOG(LogTemp, Warning, TEXT("!!!!!TAB 눌림 !!!!!%d"), bShopping);
+		if (bShopping)
+		{
+			PC->ShopUIWidget->SetVisibility(ESlateVisibility::Hidden);
+			PC->SlotUIWidget->SetVisibility(ESlateVisibility::Visible);
+			bShopping = false;
+		}
+	}
+}
+
 void ASlimePlayer::UpdateNewbucks(int32 AddNewbucks)
 {
 	Newbucks += AddNewbucks;
@@ -399,6 +587,12 @@ void ASlimePlayer::UpdateHP(float Hp)
 {
 	CurHP -= Hp;
 	CurHP = FMath::Max(CurHP, 0.0f);
-	OnUpdateHPInPercent.Broadcast(CurHP / 100.0f);
+	OnUpdateHPInPercent.Broadcast(CurHP, MaxHP);
 }
 
+void ASlimePlayer::UpdateMP(float MP)
+{
+	CurMP -= MP;
+	CurMP = FMath::Max(CurMP, 0.0f);
+	OnUpdateMPInPercent.Broadcast(CurMP, MaxMP);
+}

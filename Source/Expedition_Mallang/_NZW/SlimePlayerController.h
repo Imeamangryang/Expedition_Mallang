@@ -8,8 +8,9 @@
 
 class UInputMappingContext;
 class UInputAction;
-class USlimePlayerHUD;
+class USlimePlayerStatUI;
 class USlimePlayerSlotUI;
+class USlimeShopUI;
 
 /**
  * 
@@ -44,6 +45,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* FireAction;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* WaveCannonAction;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* Num_1Action;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* Num_2Action;
@@ -51,13 +54,26 @@ public:
 	UInputAction* Num_3Action;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* Num_4Action;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* InteractAction;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* EnterAction;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* ExitAction;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
-	TSubclassOf<USlimePlayerHUD> HUDClass;
+	TSubclassOf<USlimePlayerStatUI> StatUIClass;
+	UPROPERTY(BlueprintReadWrite)
+	USlimePlayerStatUI* StatUIWidget;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
-	TSubclassOf<USlimePlayerSlotUI> InvenUI;
-	UPROPERTY()
-	USlimePlayerHUD* HUDWidget;
-	UPROPERTY()
-	USlimePlayerSlotUI* InvenUIWidget;
+	TSubclassOf<USlimePlayerSlotUI> SlotUIClass;
+	UPROPERTY(BlueprintReadWrite)
+	USlimePlayerSlotUI* SlotUIWidget;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSubclassOf<USlimeShopUI> ShopUIClass;
+	UPROPERTY(BlueprintReadWrite)
+	USlimeShopUI* ShopUIWidget;
+	
 };

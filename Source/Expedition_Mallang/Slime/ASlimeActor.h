@@ -59,9 +59,7 @@ public:
 	void SolveVolumeConstraints(float DeltaTime);
 	void SolveCollision(float DeltaTime);
 	
-	void RunXPBD_LOD0(float DeltaTime);
-	void RunXPBD_LOD1(float DeltaTime);
-	void RunXPBD_LOD2(float DeltaTime);
+	void RunXPBD(float DeltaTime, int32 LOD);
 	int32 CalculateLOD() const;
 	
 	FVector ComputeParticleCenter();
@@ -79,6 +77,9 @@ public:
 	//. 인터페이스 함수
 	virtual FName GetID_Implementation() override;
 	virtual UClass* GetItemActorClass_Implementation() override;
+	
+	UFUNCTION(BlueprintCallable)
+	void SetSlimeSphereRadius(float NewRadius);
 	
 protected:
 	// Called when the game starts or when spawned
@@ -98,11 +99,11 @@ public:
 	UMaterialInterface* SourceMaterial;
 	
 	// 런타임용 DynamicMeshComponent
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slime")
 	UDynamicMeshComponent* DynamicMeshComp;
 	
 	// 물리 충돌용 Sphere Component
-	UPROPERTY(VisibleAnywhere, Category = "Slime")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slime")
 	USphereComponent* SphereCollision;
 	
 	TArray<FSlimeParticle> Particles;
@@ -110,7 +111,7 @@ public:
 	TArray<FTriangle> Triangles;
 
 	// Sphere Collision 반지름
-	UPROPERTY(EditAnywhere, Category = "Slime")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Slime")
 	float SphereRadius = 60.0f;
 	
 	// 솔버 반복 횟수
@@ -119,6 +120,9 @@ public:
 	
 	UPROPERTY(EditAnywhere, Category = "Slime")
 	int32 SolverIterations_LOD1 = 2;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bProtectedZone = false;
 	
 	// 부피 컴플라이언스
 	UPROPERTY(EditAnywhere, Category="Slime", meta=(ClampMin="1", ClampMax="10"))

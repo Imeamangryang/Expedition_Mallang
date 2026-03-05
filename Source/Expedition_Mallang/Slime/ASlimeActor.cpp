@@ -65,6 +65,8 @@ void AASlimeActor::BeginPlay()
 	
 	// Particle과 Constraint 초기화
 	InitializeParticlesAndConstraints();
+	
+	
 }
 
 void AASlimeActor::OnConstruction(const FTransform& Transform)
@@ -97,24 +99,7 @@ void AASlimeActor::Tick(float DeltaTime)
 	
 	ActorLOD = CalculateLOD();
 	
-	if (ActorLOD == 3)
-	{
-		Destroy();
-		return;
-	}
-	if (ActorLOD == 2)
-	{
-		RunXPBD_LOD2(DeltaTime);
-		return;
-	}
-	if (ActorLOD == 1)
-	{
-		RunXPBD_LOD1(DeltaTime);
-		return;
-	}
-	
-	// LOD 0
-	RunXPBD_LOD0(DeltaTime);
+	RunXPBD(DeltaTime, ActorLOD);
 }
 
 // StaticMesh를 DynamicMesh로 변환하는 유틸리티 함수
@@ -562,8 +547,34 @@ void AASlimeActor::SolveCollision(float DeltaTime)
 	// }
 }
 
-void AASlimeActor::RunXPBD_LOD0(float DeltaTime)
+void AASlimeActor::RunXPBD(float DeltaTime, int32 LOD)
 {
+	if (LOD == 3 && !bProtectedZone)	// LOD 3 : 시뮬레이션 제거
+	{
+		Destroy();
+		return;
+	}
+	if (LOD == 2)	// LOD 2 : 시뮬레이션 정지, 위치 유지
+	{
+		for (FSlimeParticle& P : Particles)
+		{
+			P.Velocity = FVector::ZeroVector;
+			P.PrevPosition = P.Position;
+		}
+		return;
+	}
+	
+	int32 SolverIterations = 5;
+	
+	if (LOD == 1)	// LOD 1 : 제약 조건 해결 횟수 감소
+	{
+		SolverIterations = SolverIterations_LOD1;
+	}
+	if (LOD == 0)	// LOD 0 : Full Simulation
+	{
+		SolverIterations = SolverIterations_LOD0;
+	}
+	
 	FVector Center = ComputeParticleCenter();
 	
 	// Actor를 중심 위치로 이동
@@ -602,7 +613,7 @@ void AASlimeActor::RunXPBD_LOD0(float DeltaTime)
 	 * for all Constraints c :
 	 *	SolveConstraint(c)
 	 */
-	for (int32 Iter = 0; Iter < SolverIterations_LOD0; Iter++)
+	for (int32 Iter = 0; Iter < SolverIterations; Iter++)
 	{
 		// 거리 제약 조건 Solve
 		SolveDistanceConstraints(Constraints, DeltaTime);
@@ -634,89 +645,6 @@ void AASlimeActor::RunXPBD_LOD0(float DeltaTime)
 	EDynamicMeshChangeType::GeneralEdit,
 	EDynamicMeshAttributeChangeFlags::VertexPositions
 	);
-}
-
-void AASlimeActor::RunXPBD_LOD1(float DeltaTime)
-{
-	FVector Center = ComputeParticleCenter();
-	
-	// Actor를 중심 위치로 이동
-	FVector ActorWorldPos = GetActorLocation();
-	SetActorLocation(ActorWorldPos + Center);
-	
-	// Particle들을 반대로 이동 (로컬 유지)
-	for (FSlimeParticle& P : Particles)
-	{
-		P.Position -= Center;
-		P.CollisionLambda = 0.0f;
-	}
-	
-	// Lambda 초기화
-	for (FDistanceConstraint& C : Constraints)
-	{
-		C.Lambda = 0.0f;
-	}
-	VolumeLambda = 0.0f;
-	
-	/*
-	 * for all Particles i : 
-	 * v_i = v_i + g * dt		| 속도 업데이트
-	 * p_i_prev = p_i			| 현재 위치 저장
-	 * p_i = p_i + v_i * dt		| 위치 업데이트
-	 */
-	for (FSlimeParticle& P : Particles)
-	{
-		P.Velocity.Z += Gravity * DeltaTime;
-		P.PrevPosition = P.Position;
-		P.Position += P.Velocity * DeltaTime;
-	}
-	
-	/*
-	 * 제약 조건 해결 (SolverIterations 만큼 반복)
-	 * for all Constraints c :
-	 *	SolveConstraint(c)
-	 */
-	for (int32 Iter = 0; Iter < SolverIterations_LOD1; Iter++)
-	{
-		// 거리 제약 조건 Solve
-		SolveDistanceConstraints(Constraints, DeltaTime);
-		
-		// 부피 보존 제약 조건 Solve
-		SolveVolumeConstraints(DeltaTime);
-		
-		// 충돌 조건 해결
-		SolveCollision(DeltaTime);
-	}
-	
-	/*
-	 * for all Particles i :
-	 * v_i = (p_i - p_i_prev) / dt	| 속도 업데이트
-	 */
-	for (FSlimeParticle& P : Particles)
-	{
-		P.Velocity = (P.Position - P.PrevPosition) / DeltaTime;
-	}
-	
-	DynamicMeshComp->GetDynamicMesh()->EditMesh(
-	[this](FDynamicMesh3& Mesh)
-	{
-		for (int32 vid : Mesh.VertexIndicesItr())
-		{
-			Mesh.SetVertex(vid, static_cast<FVector3d>(Particles[vid].Position));
-		}
-	},
-	EDynamicMeshChangeType::GeneralEdit,
-	EDynamicMeshAttributeChangeFlags::VertexPositions
-	);
-}
-
-void AASlimeActor::RunXPBD_LOD2(float DeltaTime)
-{
-	for (FSlimeParticle& P : Particles)
-	{
-		P.Velocity = FVector::ZeroVector;
-		P.PrevPosition = P.Position;
-	}
 }
 
 int32 AASlimeActor::CalculateLOD() const
@@ -756,7 +684,7 @@ int32 AASlimeActor::CalculateLOD() const
 	}
 	
 	// 뷰 안이면 LOD는 최대 1까지만 허용
-	if (const bool bInView = (Dot > 0.2f))
+	if (Dot > 0.2f)
 	{
 		LOD = FMath::Min(LOD, 1);
 	}
@@ -895,4 +823,9 @@ FName AASlimeActor::GetID_Implementation()
 UClass* AASlimeActor::GetItemActorClass_Implementation()
 {
 	return this->GetClass();;
+}
+
+void AASlimeActor::SetSlimeSphereRadius(float NewRadius)
+{
+	SphereRadius += NewRadius;
 }

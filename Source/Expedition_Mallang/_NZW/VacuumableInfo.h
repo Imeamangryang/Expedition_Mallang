@@ -25,6 +25,22 @@ enum class EFoodType : uint8
 };
 
 USTRUCT(BlueprintType)
+struct FSlot
+{
+	GENERATED_BODY()
+	
+public:
+	UPROPERTY()
+	UClass* ItemClass = nullptr;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FName ID = TEXT("");
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 Count = 0;
+};
+
+USTRUCT(BlueprintType)
 struct FVacuumableInfo : public FTableRowBase
 {
 	GENERATED_BODY()

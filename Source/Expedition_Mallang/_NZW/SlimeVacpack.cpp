@@ -3,8 +3,8 @@
 
 #include "SlimeVacpack.h"
 
-#include "NZW_TestSlime.h"
 #include "SlimePlayer.h"
+#include "VacuumableInfo.h"
 #include "Components/ArrowComponent.h"
 #include "Components/SphereComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -53,8 +53,8 @@ ASlimeVacpack::ASlimeVacpack()
 	VacuumCollision->SetSphereRadius(50.f);
 	VacuumCollision->SetRelativeLocation(FVector(50.0f, 0.0f, 0.0f));
 	
-	static ConstructorHelpers::FObjectFinder<UDataTable> DT_Vacable(TEXT("/Script/Engine.DataTable'/Game/_NZW/03_Data/DT_VacuumablInfo.DT_VacuumablInfo'"));
-	if (DT_Vacable.Succeeded()) VacuumableDataTable = DT_Vacable.Object;
+	// static ConstructorHelpers::FObjectFinder<UDataTable> DT_Vacable(TEXT("/Script/Engine.DataTable'/Game/_NZW/03_Data/DT_VacuumablInfo.DT_VacuumablInfo'"));
+	// if (DT_Vacable.Succeeded()) VacuumableDataTable = DT_Vacable.Object;
 }
 
 // Called when the game starts or when spawned
@@ -117,6 +117,8 @@ int32 ASlimeVacpack::FindEmptySlot(FName ID)
 	// for (int32 i = 0; i < 4; i++)
 	// 	UE_LOG(LogTemp, Warning, TEXT("SlotNum: %d, ID: %s, Count: %d"), i, *Inventory[i].ID.ToString(), Inventory[i].Count);
 	
+	int32 EmptySlot = INDEX_NONE;
+	
 	for (int32 i = 0; i < 4; i++)
 	{
 		//. ID가 같은 경우
@@ -131,21 +133,23 @@ int32 ASlimeVacpack::FindEmptySlot(FName ID)
 		}
 		
 		//. 비어있는 슬롯칸이 있는 경우
-		if (Inventory[i].Count <= 0)
-			return i;
+		if (Inventory[i].Count <= 0 && EmptySlot == INDEX_NONE)
+			EmptySlot = i;
 	}
 
 	//. 슬롯이 꽉 차있는 경우	
-	return INDEX_NONE;	
+	return EmptySlot;	
 }
 
 void ASlimeVacpack::OnComponentBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
+	if (!OtherActor->IsValidLowLevel()) return;
+	
 	//. Interface를 갖고있는 Actor인지 확인하고 -> 아이템 아이디 가져오는 Interface
 	if (!OtherActor->Implements<UVacuumableInterface>()) return;
 	FName ID = IVacuumableInterface::Execute_GetID(OtherActor);
-	UE_LOG(LogTemp, Warning, TEXT("ID: %s"), *ID.ToString());
+	UE_LOG(LogTemp, Warning, TEXT("빨아들인 ID: %s"), *ID.ToString());
 	
 	//. 채울 수 있는 슬롯 확인
 	int32 SlotNum = FindEmptySlot(ID);
@@ -167,6 +171,17 @@ void ASlimeVacpack::OnComponentBeginOverlap(UPrimitiveComponent* OverlappedCompo
 	
 	//. 습득 Delegate 실행 (UI에 띄우기 위한 매개변수)
 	SlimePlayer->OnVacuuming.Broadcast(ID, Inventory[SlotNum].Count, SlotNum);
+
+	TArray<UPrimitiveComponent*> PrimComps;
+	OtherActor->GetComponents<UPrimitiveComponent>(PrimComps);
+	for (UPrimitiveComponent* Comp : PrimComps)
+	{
+		if (Comp)
+		{
+			Comp->UnWeldFromParent();
+			Comp->SetSimulatePhysics(false);
+		}
+	}
 	
 	//. 습득한 액터 파괴
 	OtherActor->Destroy();
@@ -441,8 +456,8 @@ void ASlimeVacpack::Vacuuming(float DeltaTime)
 		FVector NewLocation = VacuumableLocation
 			+ LateralVel * DeltaTime						// 측면(좌우 흔들림 + 소용돌이 + 부양) 이동
 			+ Forward * (AxisVel * DeltaTime);	// 축 방향(노즐 쪽으로) 이동
-
-		VacuumableActor->SetActorLocation(NewLocation, true);	// true = 충돌 체크
+		
+		VacuumableActor->SetActorLocation(NewLocation, false);	// true = 충돌 체크
 
 		//todo : 슬라임이 VacuumCollision 안에 들어오면 실제로 "흡수" 처리 (목록에서 제거 + 수납)
 	}
@@ -451,10 +466,6 @@ void ASlimeVacpack::Vacuuming(float DeltaTime)
 // RMB 뗐을 때 한 번 호출 → 흡입 완전 중단
 void ASlimeVacpack::StopVacuuming()
 {
-	// 흡입 플래그 끄기 → Tick에서 VacuumDetecting / Vacuumming이 더 이상 실행 안 됨
-	bIsVacuuming = false;
-	VacuumCollision->SetGenerateOverlapEvents(false);
-
 	// 감지 목록 초기화
 	// → 다음에 다시 RMB를 누를 때 깨끗한 상태에서 시작
 	CurrentVacuumTargets.Empty();
@@ -464,13 +475,19 @@ void ASlimeVacpack::StopVacuuming()
 	//   이전에 가속되어 있던 속도가 남아서 처음부터 튀어나가는 현상이 생김
 	VacuumLateralVelocities.Empty();	// 측면(스프링-댐퍼) 속도
 	VacuumAxisVelocities.Empty();		// 축 방향(흡입) 속도
+	
+	// 흡입 플래그 끄기 → Tick에서 VacuumDetecting / Vacuumming이 더 이상 실행 안 됨
+	bIsVacuuming = false;
+	VacuumCollision->SetGenerateOverlapEvents(false);
 }
 
 // LMB 클릭 시 선택 되어있는 슬롯에 아이템이 있고 개수가 충분하면 하나씩 발사 (Delay 0.5초)
 void ASlimeVacpack::FireVacuumable()
 {
 	//. 선택 되어있는 슬롯에 아이템이 존재 하지 않으면 return
+	if (bIsVacuuming) return;
 	if (Inventory[SelectSlotNumber].Count <= 0)	return;
+	if (Inventory[SelectSlotNumber].ItemClass == nullptr) return;
 	
 	FVector Start = Muzzle->GetComponentLocation() + Muzzle->GetForwardVector() * 100.f; //! FireSpawnPoint 변수화 
 	AActor* Item = GetWorld()->SpawnActor<AActor>(
@@ -479,12 +496,12 @@ void ASlimeVacpack::FireVacuumable()
 	if (AASlimeActor* Slime = Cast<AASlimeActor>(Item))
 	{
 		Slime->ID = Inventory[SelectSlotNumber].ID;
-		Slime->ApplySlimeMovementImpulse(Muzzle->GetForwardVector(), 10000.0f, 0.f);
+		Slime->ApplySlimeMovementImpulse(Muzzle->GetForwardVector(), FireForce * 10, 0.f);
 	}
 	else if (UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(Item->GetRootComponent()))
 	{
 		IVacuumableInterface::Execute_SetID(Item, Inventory[SelectSlotNumber].ID);
-		Primitive->AddImpulse(Muzzle->GetForwardVector() * 1000.0f,NAME_None, true); //! ImpulseForce 변수화
+		Primitive->AddImpulse(Muzzle->GetForwardVector() * FireForce, NAME_None, true); 
 	}
 	
 	//. 개수 제거 후 Delegate 실행 (UI에 띄우기 위한 매개변수)
@@ -500,4 +517,40 @@ void ASlimeVacpack::FireVacuumable()
 	// UE_LOG(LogTemp, Error, TEXT("\nSlotNum: %d, ID: %s, Count: %d"), 
 	// 	SelectSlotNumber, *Inventory[SelectSlotNumber].ID.ToString(), Inventory[SelectSlotNumber].Count);
 	SlimePlayer->OnVacuuming.Broadcast(Inventory[SelectSlotNumber].ID, Inventory[SelectSlotNumber].Count, SelectSlotNumber);
+}
+
+// 파동포
+void ASlimeVacpack::WaveCannon()
+{
+	// if (bWaveCannon == false) return;
+	FVector Origin = Muzzle->GetComponentLocation();
+	
+	DrawDebugSphere(GetWorld(), Origin, WaveCannonRange, 16, FColor::Blue, false, 3.0f);
+	
+	//. 제외할 Actors
+	TArray<AActor*> IgnoreActors;
+	IgnoreActors.Add(this);
+	if (GetOwner()) IgnoreActors.Add(GetOwner());
+	
+	//. 받아올 Actors
+	TArray<AActor*> OutActors;
+	bool bHit = UKismetSystemLibrary::SphereOverlapActors(
+		GetWorld(), Origin, WaveCannonRange, VacuumObjectTypes, AActor::StaticClass(), IgnoreActors, OutActors);
+	
+	if (!bHit) return;
+	
+	for (AActor* Item : OutActors)
+	{
+		FVector Direction = Item->GetActorLocation() - Origin;
+		Direction.Normalize();
+		
+		if (AASlimeActor* Slime = Cast<AASlimeActor>(Item))
+		{
+			Slime->ApplySlimeMovementImpulse(Direction, 10000.0f, 0.f);
+		}
+		else if (UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(Item->GetRootComponent()))
+		{
+			Primitive->AddImpulse(Direction * 1000.0f, NAME_None, true); //! ImpulseForce 변수화
+		}
+	}
 }

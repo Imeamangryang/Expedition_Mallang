@@ -3,9 +3,11 @@
 
 #include "_NZW/SlimePlayerController.h"
 #include "EnhancedInputSubsystems.h"
+#include "SlimeGameInstance.h"
 #include "SlimePlayer.h"
-#include "SlimePlayerHUD.h"
+#include "SlimePlayerStatUI.h"
 #include "SlimePlayerSlotUI.h"
+#include "SlimeShopUI.h"
 #include "Blueprint/UserWidget.h"
 
 ASlimePlayerController::ASlimePlayerController()
@@ -17,7 +19,11 @@ ASlimePlayerController::ASlimePlayerController()
 	  SpotLightAction(nullptr),
 		VacuumAction(nullptr),
 		FireAction(nullptr),
-	  Num_1Action(nullptr), Num_2Action(nullptr), Num_3Action(nullptr), Num_4Action(nullptr)
+		WaveCannonAction(nullptr),
+	  Num_1Action(nullptr), Num_2Action(nullptr), Num_3Action(nullptr), Num_4Action(nullptr),
+		InteractAction(nullptr),
+		EnterAction(nullptr),
+		ExitAction(nullptr)
 {
 }
 
@@ -42,26 +48,41 @@ void ASlimePlayerController::BeginPlay()
 		}
 	}
 	
-	if (HUDClass && InvenUI)
+	if (StatUIClass)
 	{
-		HUDWidget = CreateWidget<USlimePlayerHUD>(this, HUDClass);
-		if (HUDWidget)
+		StatUIWidget = CreateWidget<USlimePlayerStatUI>(this, StatUIClass);
+		if (StatUIWidget)
 		{
-			HUDWidget->AddToViewport();
+			StatUIWidget->AddToViewport();
 		}
-		
-		InvenUIWidget = CreateWidget<USlimePlayerSlotUI>(this, InvenUI);
-		if (InvenUIWidget)
+	}
+	
+	if (SlotUIClass)
+	{
+		SlotUIWidget = CreateWidget<USlimePlayerSlotUI>(this, SlotUIClass);
+		if (SlotUIWidget)
 		{
-			InvenUIWidget->AddToViewport();
+			SlotUIWidget->AddToViewport();
+		}
+	}	
+	
+	if (ShopUIClass)
+	{
+		ShopUIWidget = CreateWidget<USlimeShopUI>(this, ShopUIClass);
+		if (ShopUIWidget)
+		{
+			ShopUIWidget->AddToViewport();
 		}
 	}
 	
 	// 2) Pawn 얻어서 연결
 	ASlimePlayer* SlimePlayer = Cast<ASlimePlayer>(GetPawn());
-	if (HUDWidget && InvenUIWidget && SlimePlayer)
+	if (SlimePlayer)
 	{
-		HUDWidget->SetUpSlimePlayer(SlimePlayer);
-		InvenUIWidget->SetUpSlimePlayer(SlimePlayer);
+		if (StatUIWidget) StatUIWidget->SetUpSlimePlayer(SlimePlayer);
+		if (SlotUIWidget) SlotUIWidget->SetUpSlimePlayer(SlimePlayer);
+		if (ShopUIWidget) ShopUIWidget->SetUpSlimePlayer(SlimePlayer);
 	}
+	
+	ShopUIWidget->SetVisibility(ESlateVisibility::Collapsed);
 }

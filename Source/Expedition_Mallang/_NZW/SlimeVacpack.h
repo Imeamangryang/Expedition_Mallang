@@ -9,21 +9,7 @@
 class UArrowComponent;
 class USphereComponent;
 
-USTRUCT(BlueprintType)
-struct FSlot
-{
-	GENERATED_BODY()
-	
-public:
-	UPROPERTY()
-	UClass* ItemClass = nullptr;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FName ID = TEXT("");
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	int32 Count = 0;
-};
+struct FSlot;
 
 UCLASS()
 class EXPEDITION_MALLANG_API ASlimeVacpack : public AActor
@@ -47,6 +33,9 @@ public:
 	USkeletalMeshComponent* GetWeaponFirstMesh() const { return WeaponFirst; }
 	UFUNCTION(BlueprintPure, Category="Weapon")
 	USkeletalMeshComponent* GetWeaponThirdMesh() const { return WeaponThird; }
+	
+	UFUNCTION()
+	void SetWaveCannonForce(float Force) { WaveCannonForce = Force; }
 	
 	// 감지 범위 안의 Vacuumable Actor 목록을 매 프레임 갱신
 	UFUNCTION()
@@ -72,6 +61,9 @@ public:
 	
 	UFUNCTION()
 	void FireVacuumable();
+	
+	UFUNCTION()
+	void WaveCannon();
 	
 /*! 변수 */
 public:
@@ -100,10 +92,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Detect", meta=(AllowPrivateAccess="true"))
 	float DetectFOV = 30.0f;
 	
+	UPROPERTY()
+	TArray<AActor*> CurrentVacuumTargets;	// Detect 한 Actor들
 	TArray<TEnumAsByte<EObjectTypeQuery>> VacuumObjectTypes;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Vacpack|Detect")
-	TArray<AActor*> CurrentVacuumTargets;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Vacuuming", meta=(AllowPrivateAccess="true"))
 	float SpringK = 4.0f;					// 스프링 세기: 클수록 중심으로 더 빠르게 수렴
@@ -129,8 +120,15 @@ public:
 	UPROPERTY()
 	TMap<AActor*, float> VacuumAxisVelocities;
 	
-	//. DataTable
-	UPROPERTY()
-	UDataTable* VacuumableDataTable;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Fire", meta=(AllowPrivateAccess="true"))
+	float FireForce = 1000.0f;
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|WaveCannon", meta=(AllowPrivateAccess="true"))
+	float WaveCannonRange = 800.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|WaveCannon", meta=(AllowPrivateAccess="true"))
+	float WaveCannonForce = 2000.0f;
+	
+	//. DataTable
+	// UPROPERTY()
+	// UDataTable* VacuumableDataTable;
 };

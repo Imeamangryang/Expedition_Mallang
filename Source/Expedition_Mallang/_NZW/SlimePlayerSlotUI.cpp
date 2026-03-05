@@ -4,6 +4,7 @@
 #include "_NZW/SlimePlayerSlotUI.h"
 
 #include "SlimePlayer.h"
+#include "Algo/Count.h"
 
 void USlimePlayerSlotUI::SetUpSlimePlayer(ASlimePlayer* SlimePlayer)
 {
@@ -22,14 +23,16 @@ void USlimePlayerSlotUI::OnSelectSlot(int32 SlotNum, int32 PrevSlotNum)
 
 void USlimePlayerSlotUI::OnUpdateSlotUI(FName ID, int32 Count, int32 SlotNum)
 {
-	switch (SlotNum)
-	{
-		case 0: BP_UpdateSlot_1_UI(ID, Count); break;
-		case 1: BP_UpdateSlot_2_UI(ID, Count); break;
-		case 2: BP_UpdateSlot_3_UI(ID, Count); break;
-		case 3: BP_UpdateSlot_4_UI(ID, Count); break;
-		default: break;
-	}
+	BP_UpdateSlot_UI(ID, Count, SlotNum);
+	
+	// switch (SlotNum)
+	// {
+	// 	case 0: BP_UpdateSlot_1_UI(ID, Count); break;
+	// 	case 1: BP_UpdateSlot_2_UI(ID, Count); break;
+	// 	case 2: BP_UpdateSlot_3_UI(ID, Count); break;
+	// 	case 3: BP_UpdateSlot_4_UI(ID, Count); break;
+	// 	default: break;
+	// }
 }
 
 void USlimePlayerSlotUI::OnItemInfoUI(FName ID)
