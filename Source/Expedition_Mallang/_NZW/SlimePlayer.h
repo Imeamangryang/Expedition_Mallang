@@ -32,7 +32,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FInteract_D);
 //. Shop Interaction
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FShopInteraction_D, int32, Level);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FShopNotEnoughNewbucks);
-
+//. Dead
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FDeadUI_D);
 
 UCLASS()
 class EXPEDITION_MALLANG_API ASlimePlayer : public ACharacter
@@ -109,6 +110,12 @@ public:
 	void ExitShop(const FInputActionValue& Value);
 	
 	UFUNCTION(BlueprintCallable)
+	void PlayerDead();
+	
+	UFUNCTION(BlueprintCallable)
+	void PlayerRebirth();
+	
+	UFUNCTION(BlueprintCallable)
 	void UpdateNewbucks(int32 AddNewbucks);
 	UFUNCTION(BlueprintCallable)
 	void UpdateHP(float HP);
@@ -150,9 +157,12 @@ public:
 	int32 Newbucks = 10000;	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Stat")
 	float SprintLoseMPTime = 5.0f;	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Stat")
+	bool bIsDead = false;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Shop")
 	bool bShopping = false;
+	
 	
 	/** MP */
 	bool bIsMPDecreasing = false;
@@ -231,4 +241,7 @@ public:
 	FShopInteraction_D OnShopInteraction;
 	UPROPERTY(BlueprintAssignable, Category="SlimePlayer|Shop")
 	FShopNotEnoughNewbucks OnShopNotEnoughNewbucks;
+	
+	UPROPERTY(BlueprintAssignable, Category="SlimePlayer|Dead")
+	FDeadUI_D OnDead;
 };

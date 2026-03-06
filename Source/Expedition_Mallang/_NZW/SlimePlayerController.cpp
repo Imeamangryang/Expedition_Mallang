@@ -2,12 +2,13 @@
 
 
 #include "_NZW/SlimePlayerController.h"
+
 #include "EnhancedInputSubsystems.h"
-#include "SlimeGameInstance.h"
 #include "SlimePlayer.h"
 #include "SlimePlayerStatUI.h"
 #include "SlimePlayerSlotUI.h"
 #include "SlimeShopUI.h"
+#include "SlimeDeadUI.h"
 #include "Blueprint/UserWidget.h"
 
 ASlimePlayerController::ASlimePlayerController()
@@ -73,15 +74,25 @@ void ASlimePlayerController::BeginPlay()
 		{
 			ShopUIWidget->AddToViewport();
 		}
+	}	
+	
+	if (DeadUIClass)
+	{
+		DeadUIWidget = CreateWidget<USlimeDeadUI>(this, DeadUIClass);
+		if (DeadUIWidget)
+		{
+			DeadUIWidget->AddToViewport();
+		}
 	}
 	
 	// 2) Pawn 얻어서 연결
 	ASlimePlayer* SlimePlayer = Cast<ASlimePlayer>(GetPawn());
 	if (SlimePlayer)
 	{
-		if (StatUIWidget) StatUIWidget->SetUpSlimePlayer(SlimePlayer);
-		if (SlotUIWidget) SlotUIWidget->SetUpSlimePlayer(SlimePlayer);
-		if (ShopUIWidget) ShopUIWidget->SetUpSlimePlayer(SlimePlayer);
+		StatUIWidget->SetUpSlimePlayer(SlimePlayer);
+		SlotUIWidget->SetUpSlimePlayer(SlimePlayer);
+		ShopUIWidget->SetUpSlimePlayer(SlimePlayer);
+		DeadUIWidget->SetUpSlimePlayer(SlimePlayer);
 	}
 	
 	ShopUIWidget->SetVisibility(ESlateVisibility::Collapsed);

@@ -8,6 +8,7 @@
 
 class UInputMappingContext;
 class UInputAction;
+class USlimeDeadUI;
 class USlimePlayerStatUI;
 class USlimePlayerSlotUI;
 class USlimeShopUI;
@@ -76,4 +77,8 @@ public:
 	UPROPERTY(BlueprintReadWrite)
 	USlimeShopUI* ShopUIWidget;
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSubclassOf<USlimeDeadUI> DeadUIClass;
+	UPROPERTY(BlueprintReadWrite)
+	USlimeDeadUI* DeadUIWidget;
 };

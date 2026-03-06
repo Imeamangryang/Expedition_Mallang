@@ -114,6 +114,19 @@ void ASlimePlayer::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	
+	if (!bIsDead)
+	{
+		if (GetActorLocation().Z < 900.0f)
+		{
+			CurHP = 0.0f;
+		}
+		
+		if (CurHP <= 0.1f)
+		{
+			PlayerDead();
+		}
+	}
+	
 	//. Movement 물리적으로 처리하면 충돌처리가 이상해짐 Character에 있는 Movement 사용하는것이 더 좋음 
 	// FVector Distance = GetActorForwardVector() * MoveInput.X + GetActorRightVector() * MoveInput.Y;
 	// Distance.Normalize();
@@ -530,7 +543,7 @@ void ASlimePlayer::EnterFunc(const FInputActionValue& Value)
 				
 				MaxHP = NextPlayerStat.MaxHP;
 				CurHP = MaxHP;
-				OnUpdateHPInPercent.Broadcast(CurMP, MaxMP);
+				OnUpdateHPInPercent.Broadcast(CurHP, MaxHP);
 				
 				MaxMP = NextPlayerStat.MaxMP;
 				CurMP = MaxMP;
@@ -575,6 +588,21 @@ void ASlimePlayer::ExitShop(const FInputActionValue& Value)
 			bShopping = false;
 		}
 	}
+}
+
+void ASlimePlayer::PlayerDead()
+{
+	UE_LOG(LogTemp, Warning, TEXT("죽음"));
+	bIsDead = true;
+	OnDead.Broadcast();
+	SlimeVacpack->ClearInventorySlot();	
+}
+
+void ASlimePlayer::PlayerRebirth()
+{
+	UE_LOG(LogTemp, Warning, TEXT("환생"));
+	UpdateHP(-MaxHP);
+	bIsDead = false;
 }
 
 void ASlimePlayer::UpdateNewbucks(int32 AddNewbucks)

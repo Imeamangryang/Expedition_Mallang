@@ -112,6 +112,19 @@ void ASlimeVacpack::SelectSlot(int32 SlotNum)
 	// 	SelectSlotNumber, *Inventory[SelectSlotNumber].ID.ToString(), Inventory[SelectSlotNumber].Count);
 }
 
+void ASlimeVacpack::ClearInventorySlot()
+{
+	for (int32 i = 0; i < Inventory.Num(); i++)
+	{
+		Inventory[i].ItemClass = nullptr;
+		Inventory[i].Count = 0;
+		Inventory[i].ID = "100";
+		
+		//. 습득 Delegate 실행 (UI에 띄우기 위한 매개변수)
+		SlimePlayer->OnVacuuming.Broadcast(Inventory[i].ID, Inventory[i].Count, i);
+	}
+}
+
 int32 ASlimeVacpack::FindEmptySlot(FName ID)
 {	
 	// for (int32 i = 0; i < 4; i++)

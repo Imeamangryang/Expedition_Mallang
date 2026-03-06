@@ -163,6 +163,12 @@ public:
 	UPROPERTY(EditAnywhere, Category="Slime")
 	UNiagaraSystem* CollisionFX;
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Slime")
+	USoundBase* LandingSound;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="FX")
+	USoundBase* JumpSound;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FName ID = "101";
 	

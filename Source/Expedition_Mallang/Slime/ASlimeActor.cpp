@@ -56,6 +56,19 @@ AASlimeActor::AASlimeActor()
 		nullptr,
 		TEXT("/Game/Assets/Models/cute_enemy_slime_gltf_extracted/scene/Materials/SmallSlime1.SmallSlime1")
 	));
+	
+	// Sound 경로 설정
+	LandingSound = Cast<USoundBase>(StaticLoadObject(
+		USoundBase::StaticClass(),
+		nullptr,
+		TEXT("/Game/Assets/Music/slime/slime_Land.slime_Land")
+	));
+	
+	JumpSound = Cast<USoundBase>(StaticLoadObject(
+		USoundBase::StaticClass(),
+		nullptr,
+		TEXT("/Game/Assets/Music/slime/slime_jump.slime_jump")
+	));
 }
 
 // Called when the game starts or when spawned
@@ -477,6 +490,16 @@ void AASlimeActor::SolveCollision(float DeltaTime)
 			{
 				NiagaraComp->SetVariableLinearColor(TEXT("Color"), SlimeColor);
 			}
+			
+			// 착지 사운드
+			if (LandingSound)
+			{
+				UGameplayStatics::PlaySoundAtLocation(
+					this,
+					LandingSound,
+					GetActorLocation()
+				);
+			}
 		
 		}
 	}
@@ -812,6 +835,16 @@ void AASlimeActor::ApplySlimeMovementImpulse(const FVector& Direction, float Mov
 		FVector Impulse = FinalImpulseDir * Weight;
 		
 		P.Velocity += Impulse;
+	}
+	
+	// 착지 사운드
+	if (JumpSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(
+			this,
+			JumpSound,
+			GetActorLocation()
+		);
 	}
 }
 

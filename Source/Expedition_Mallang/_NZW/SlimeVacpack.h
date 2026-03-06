@@ -60,6 +60,9 @@ public:
 	void SelectSlot(int32 SlotNum);
 	
 	UFUNCTION()
+	void ClearInventorySlot();
+	
+	UFUNCTION()
 	void FireVacuumable();
 	
 	UFUNCTION()
