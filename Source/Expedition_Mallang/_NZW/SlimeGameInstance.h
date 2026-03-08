@@ -15,22 +15,34 @@ struct FPlayerStat : public FTableRowBase
 	GENERATED_BODY()
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	int32 Level;
+	int32 Level = 1;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float MaxHP;
+	float MaxHP = 100;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float MaxMP;
+	float MaxMP = 100;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float WavePower;
+	float WavePower = 2000;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	int32 Cost;
+	int32 Cost = 2000;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool bIsOpen;
+	bool bIsOpen = true;
+};
+
+USTRUCT(BlueprintType)
+struct FFarmSlime
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FName SlimeID;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 Count;
 };
 
 UCLASS()
@@ -40,6 +52,19 @@ class EXPEDITION_MALLANG_API USlimeGameInstance : public UGameInstance
 	
 public:
 	virtual void Init() override;
+	virtual void Shutdown() override;
+	
+	UFUNCTION(BlueprintCallable, Category="SlimeGame|Save&Load")
+	void SaveGame();
+	UFUNCTION(BlueprintCallable, Category="SlimeGame|Save&Load")
+	void LoadGame();
+	UFUNCTION(BlueprintCallable, Category="SlimeGame|Save&Load")
+	void SaveSettings();
+	UFUNCTION(BlueprintCallable, Category="SlimeGame|Save&Load")
+	void LoadSettings();
+	
+	UFUNCTION(BlueprintCallable, Category="SlimeGame|SlimeFarm")
+	void SetFarmSlimes(FName SlimeID, bool bIsIn);
 	
 	// 특정 레벨 데이터 조회
 	UFUNCTION(BlueprintCallable, Category="SlimeGame|Stat")
@@ -50,9 +75,20 @@ public:
 	bool ApplyUpgrade(int32& CurLevel, FPlayerStat& OutNextStat);
 	
 /*! 변수 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	class USlimePlaySaveGame* PlaySaveGame;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	class USlimeSettingSaveGame* SettingSaveGame;
+	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="SlimeGame|State")
 	int32 CurStatLevel = 1;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="SlimeGame|State")
+	float SessionStartTime;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SlimeGame|State")
 	UDataTable* StatData;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SlimeGame|State")
+	UDataTable* VacuumableData;
+	
 };

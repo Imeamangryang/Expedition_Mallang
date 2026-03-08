@@ -6,22 +6,23 @@
 #include "GameFramework/Character.h"
 #include "SlimePlayer.generated.h"
 
-// class USpringArmComponent;
 class ASlimePlayerController;
 class ASlimeVacpack;
 class USkeletalMeshComponent;
 class UCameraComponent;
 class USpotLightComponent;
+class USlimeGameInstance;
 
 // Enhanced Input에서 액션값을 받을 때 사용하는 구조체
 struct FInputActionValue;
-struct FPlayerStat;
+struct FFarmSlime;
 
 /*! Delegate */ 
 //. HP, MP, Newbucks
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FUpdateHP_D, float, Cur, float, Max);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FUpdateMP_D, float, Cur, float, Max);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FUpdateNB_D, int32, Newbucks);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FUpdatePT_D, float, PlayTime);
 //. ItemInfo
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FItemInfo_D, FName, ID);
 //. ItemSlot
@@ -31,9 +32,11 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FVacuumed_D, FName, ID, int32, Co
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FInteract_D);
 //. Shop Interaction
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FShopInteraction_D, int32, Level);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FShopNotEnoughNewbucks);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FShopNotEnoughNewbucks_D);
 //. Dead
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FDeadUI_D);
+//. 슬라임 농장
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSaveSlimeFarm_D, TArray<FFarmSlime>&, SlimeCounts);
 
 UCLASS()
 class EXPEDITION_MALLANG_API ASlimePlayer : public ACharacter
@@ -60,6 +63,7 @@ public:
 	UFUNCTION(BlueprintCallable)	
 	FVector GetCurrentVelocity() { return Velocity; }
 	
+	/** Key Binding 함수 */
 	UFUNCTION()
 	void Move(const FInputActionValue& Value);
 	
@@ -109,9 +113,12 @@ public:
 	UFUNCTION()
 	void ExitShop(const FInputActionValue& Value);
 	
+	UFUNCTION()
+	void ESC_Menu(const FInputActionValue& Value);
+	
+	/** Player 로직 함수 */
 	UFUNCTION(BlueprintCallable)
 	void PlayerDead();
-	
 	UFUNCTION(BlueprintCallable)
 	void PlayerRebirth();
 	
@@ -121,8 +128,11 @@ public:
 	void UpdateHP(float HP);
 	UFUNCTION(BlueprintCallable)
 	void UpdateMP(float MP);
+	UFUNCTION(BlueprintCallable)
+	void UpdatePlayTime();
 
-protected:
+	
+	
 	void Jetpack(float DeltaTime);
 	
 	void FillMPStart(float DeltaTime);
@@ -140,8 +150,8 @@ protected:
 	USpotLightComponent* SpotLight;
 	
 	UPROPERTY()
-	ASlimePlayerController* PC;
-
+	USlimeGameInstance* GI;
+	
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Stat")
 	int32 CurLevel = 1;
@@ -155,6 +165,13 @@ public:
 	float CurMP;	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Stat")
 	int32 Newbucks = 10000;	
+	
+	FTimerHandle PlayTimeTimerHandle;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Stat")
+	float CurPlayTime = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Stat")
+	int32 PenaltyTime = 3;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Stat")
 	float SprintLoseMPTime = 5.0f;	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Stat")
@@ -162,7 +179,6 @@ public:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SlimePlayer|Shop")
 	bool bShopping = false;
-	
 	
 	/** MP */
 	bool bIsMPDecreasing = false;
@@ -225,6 +241,8 @@ public:
 	FUpdateMP_D OnUpdateMPInPercent;
 	UPROPERTY(BlueprintAssignable, Category="SlimePlayer|UI")
 	FUpdateNB_D OnUpdateNewbucks;
+	UPROPERTY(BlueprintAssignable, Category="SlimePlayer|UI")
+	FUpdatePT_D OnUpdatePlayTime;
 	
 	UPROPERTY(BlueprintAssignable, Category="SlimePlayer|UI")
 	FSelectSlot OnSelectSlot;
@@ -240,8 +258,11 @@ public:
 	UPROPERTY(BlueprintAssignable, Category="SlimePlayer|Shop")
 	FShopInteraction_D OnShopInteraction;
 	UPROPERTY(BlueprintAssignable, Category="SlimePlayer|Shop")
-	FShopNotEnoughNewbucks OnShopNotEnoughNewbucks;
+	FShopNotEnoughNewbucks_D OnShopNotEnoughNewbucks;
 	
 	UPROPERTY(BlueprintAssignable, Category="SlimePlayer|Dead")
 	FDeadUI_D OnDead;
+	
+	UPROPERTY(BlueprintAssignable, Category="SlimePlayer|SlimeFarm")
+	FSaveSlimeFarm_D OnSaveSlimeFarm;
 };

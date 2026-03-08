@@ -4,6 +4,9 @@
 	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=1BEB0AC5_002D7419_002D3142_002D9587_002DF59DCE54D69C_002Fdl_003ASource_003A_002E_002E_003F_002E_002E_003FSource_002Fd_003AExpedition_005FMallang_002Fd_003A_005FNZW_002Ff_003ASlimePlayer_002Ecpp/@EntryIndexedValue">ForceIncluded</s:String>
 	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=1BEB0AC5_002D7419_002D3142_002D9587_002DF59DCE54D69C_002Fdl_003ASource_003A_002E_002E_003F_002E_002E_003FSource_002Fd_003AExpedition_005FMallang_002Fd_003A_005FNZW_002Ff_003ASlimeVacpack_002Ecpp/@EntryIndexedValue">ForceIncluded</s:String>
 	<s:String x:Key="/Default/CodeInspection/ExcludedFiles/FilesAndFoldersToSkip2/=1BEB0AC5_002D7419_002D3142_002D9587_002DF59DCE54D69C_002Fdl_003ASource_003A_002E_002E_003F_002E_002E_003FSource_002Fd_003AExpedition_005FMallang_002Fd_003A_005FNZW_002Ff_003ASlimeVacpack_002Eh/@EntryIndexedValue">ForceIncluded</s:String>
+	<s:Int64 x:Key="/Default/CodeStyle/CodeFormatting/CppFormatting/INDENT_SIZE/@EntryValue">2</s:Int64>
+	<s:Int64 x:Key="/Default/CodeStyle/CodeFormatting/CppFormatting/TAB_WIDTH/@EntryValue">2</s:Int64>
+	<s:Boolean x:Key="/Default/Environment/SettingsMigration/IsMigratorApplied/=JetBrains_002EReSharper_002EFeature_002EServices_002ECpp_002ECodeStyle_002ESettingsUpgrade_002EFunctionReturnStyleSettingsUpgrader/@EntryIndexedValue">True</s:Boolean>
 	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=1dae37ab_002Dbee4_002D471e_002Db9c3_002D0d80ecb78d61/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="솔루션의 모든 테스트" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
   &lt;Solution /&gt;&#xD;
 &lt;/SessionState&gt;</s:String></wpf:ResourceDictionary>

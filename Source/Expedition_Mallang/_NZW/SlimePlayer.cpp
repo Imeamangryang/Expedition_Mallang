@@ -2,14 +2,13 @@
 
 #include "_NZW/SlimePlayer.h"
 
-#include <ThirdParty/ShaderConductor/ShaderConductor/External/DirectXShaderCompiler/include/dxc/DXIL/DxilConstants.h>
-
 #include "EnhancedInputComponent.h"
 #include "InteractableInterface.h"
 #include "SlimeGameInstance.h"
 #include "SlimePlayerController.h"
 #include "SlimePlayerSlotUI.h"
 #include "SlimePlayerStatUI.h"
+#include "SlimePlaySaveGame.h"
 #include "SlimeShopUI.h"
 #include "SlimeVacpack.h"
 #include "Camera/CameraComponent.h"
@@ -73,8 +72,6 @@ void ASlimePlayer::BeginPlay()
 {
 	Super::BeginPlay();
 	
-	PC = Cast<ASlimePlayerController>(GetWorld()->GetFirstPlayerController());
-	
 	//. Vacpack 생성 및 부착
 	if (SlimeVacpack == nullptr)
 	{
@@ -95,18 +92,33 @@ void ASlimePlayer::BeginPlay()
 		SlimeVacpack->GetWeaponFirstMesh()->SetAnimation(nullptr);
 	}
 	
-	//. Stat 초기화
+	// Stat 초기화
+	GI = Cast<USlimeGameInstance>(GetWorld()->GetGameInstance());
+	if (GI || GI->PlaySaveGame)
+	{
+		FPlayerStat LoadStat;
+		GI->GetStatData(GI->PlaySaveGame->SaveLevel, LoadStat);
+		CurLevel = LoadStat.Level;
+		CurHP = MaxHP = LoadStat.MaxHP;
+		CurMP = MaxMP = LoadStat.MaxMP;
+		Newbucks = GI->PlaySaveGame->SaveNewbucks;
+		CurPlayTime = GI->PlaySaveGame->SavePlayTime;
+	}
+	
 	CurHP = MaxHP;
 	CurMP = MaxMP;
 	
 	CurrentSpeed = MoveSpeed;
 	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed;
 	
+	GetWorldTimerManager().SetTimer(PlayTimeTimerHandle, this, &ASlimePlayer::UpdatePlayTime, 1.0f, true);
+	
 	//. Delegate 초기화 호출
 	OnUpdateHPInPercent.Broadcast(CurHP, MaxHP);
 	OnUpdateMPInPercent.Broadcast(CurMP, MaxMP);
 	OnUpdateNewbucks.Broadcast(Newbucks);
 	OnShopInteraction.Broadcast(CurLevel);	
+	OnUpdatePlayTime.Broadcast(CurPlayTime);
 }
 
 // Called every frame
@@ -506,6 +518,7 @@ void ASlimePlayer::Interact(const FInputActionValue& Value)
 			// 인터페이스 체크
 			if (HitActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
 			{
+				ASlimePlayerController* PC = Cast<ASlimePlayerController>(GetWorld()->GetFirstPlayerController());
 				PC->SlotUIWidget->SetVisibility(ESlateVisibility::Hidden);
 				IInteractableInterface::Execute_Interact(HitActor);
 				break;
@@ -521,8 +534,6 @@ void ASlimePlayer::EnterFunc(const FInputActionValue& Value)
 		// 레벨업 쇼핑 
 		if (bShopping)
 		{
-			USlimeGameInstance* GI = Cast<USlimeGameInstance>(GetGameInstance());
-			
 			FPlayerStat NextPlayerStat;
 			int32 NextLevel = CurLevel+1;
 			
@@ -535,7 +546,6 @@ void ASlimePlayer::EnterFunc(const FInputActionValue& Value)
 			if (NextPlayerStat.Cost <= Newbucks)
 			{
 				//CurLevel = NextLevel;
-				
 				UpdateNewbucks(-NextPlayerStat.Cost);
 				
 				GI->ApplyUpgrade(CurLevel, NextPlayerStat);
@@ -550,6 +560,11 @@ void ASlimePlayer::EnterFunc(const FInputActionValue& Value)
 				OnUpdateMPInPercent.Broadcast(CurMP, MaxMP);
 				
 				SlimeVacpack->SetWaveCannonForce(NextPlayerStat.WavePower);
+				
+				//! 레벨 업 했으면 게임 세이브
+				GI->PlaySaveGame->SaveLevel = CurLevel; 
+				GI->PlaySaveGame->SaveNewbucks = Newbucks;
+				GI->SaveGame();
 				
 				UE_LOG(LogTemp, Error, TEXT("레벨업 성공"));
 			}
@@ -583,11 +598,16 @@ void ASlimePlayer::ExitShop(const FInputActionValue& Value)
 		UE_LOG(LogTemp, Warning, TEXT("!!!!!TAB 눌림 !!!!!%d"), bShopping);
 		if (bShopping)
 		{
+			ASlimePlayerController* PC = Cast<ASlimePlayerController>(GetWorld()->GetFirstPlayerController());
 			PC->ShopUIWidget->SetVisibility(ESlateVisibility::Hidden);
 			PC->SlotUIWidget->SetVisibility(ESlateVisibility::Visible);
 			bShopping = false;
 		}
 	}
+}
+
+void ASlimePlayer::ESC_Menu(const FInputActionValue& Value)
+{
 }
 
 void ASlimePlayer::PlayerDead()
@@ -602,12 +622,20 @@ void ASlimePlayer::PlayerRebirth()
 {
 	UE_LOG(LogTemp, Warning, TEXT("환생"));
 	UpdateHP(-MaxHP);
+	
+	// 패널티 (+ 플레이 시간)
+	CurPlayTime += PenaltyTime * 3600;
+	GI->PlaySaveGame->SavePlayTime = CurPlayTime;
+	GI->SessionStartTime = GetWorld()->GetTimeSeconds();
+	
+	OnUpdatePlayTime.Broadcast(CurPlayTime);
 	bIsDead = false;
 }
 
 void ASlimePlayer::UpdateNewbucks(int32 AddNewbucks)
 {
 	Newbucks += AddNewbucks;
+	GI->PlaySaveGame->SaveNewbucks = Newbucks;
 	OnUpdateNewbucks.Broadcast(Newbucks);
 }
 
@@ -623,4 +651,13 @@ void ASlimePlayer::UpdateMP(float MP)
 	CurMP -= MP;
 	CurMP = FMath::Max(CurMP, 0.0f);
 	OnUpdateMPInPercent.Broadcast(CurMP, MaxMP);
+}
+
+void ASlimePlayer::UpdatePlayTime()
+{
+	CurPlayTime += GetWorld()->GetTimeSeconds() - GI->SessionStartTime;
+	GI->PlaySaveGame->SavePlayTime = CurPlayTime;
+	GI->SessionStartTime = GetWorld()->GetTimeSeconds();
+	
+	OnUpdatePlayTime.Broadcast(CurPlayTime);
 }

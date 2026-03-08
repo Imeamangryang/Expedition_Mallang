@@ -35,6 +35,14 @@ public:
 	USkeletalMeshComponent* GetWeaponThirdMesh() const { return WeaponThird; }
 	
 	UFUNCTION()
+	void ClearInventorySlot();
+	
+	UFUNCTION()
+	void SaveInventorySlot();
+	UFUNCTION()
+	void LoadInventorySlot();
+	
+	UFUNCTION()
 	void SetWaveCannonForce(float Force) { WaveCannonForce = Force; }
 	
 	// 감지 범위 안의 Vacuumable Actor 목록을 매 프레임 갱신
@@ -46,7 +54,7 @@ public:
 	// 흡입 중단 → 목록 + 슬라임별 속도 상태 전부 초기화
 	UFUNCTION()
 	void StopVacuuming();
-	
+	// 총과 충돌 시 Invectory Slot에 추가 
 	UFUNCTION()
 	void OnComponentBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 	
@@ -58,9 +66,6 @@ public:
 	
 	UFUNCTION()
 	void SelectSlot(int32 SlotNum);
-	
-	UFUNCTION()
-	void ClearInventorySlot();
 	
 	UFUNCTION()
 	void FireVacuumable();

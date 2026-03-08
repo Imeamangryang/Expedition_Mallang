@@ -24,7 +24,8 @@ ASlimePlayerController::ASlimePlayerController()
 	  Num_1Action(nullptr), Num_2Action(nullptr), Num_3Action(nullptr), Num_4Action(nullptr),
 		InteractAction(nullptr),
 		EnterAction(nullptr),
-		ExitAction(nullptr)
+		ExitAction(nullptr),
+		ESCAction(nullptr)
 {
 }
 

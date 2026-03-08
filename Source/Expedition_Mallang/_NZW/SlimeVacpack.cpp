@@ -3,7 +3,9 @@
 
 #include "SlimeVacpack.h"
 
+#include "SlimeGameInstance.h"
 #include "SlimePlayer.h"
+#include "SlimePlaySaveGame.h"
 #include "VacuumableInfo.h"
 #include "Components/ArrowComponent.h"
 #include "Components/SphereComponent.h"
@@ -62,6 +64,9 @@ void ASlimeVacpack::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	//. Delegate를 위한 플레이어 저장
+	SlimePlayer = Cast<ASlimePlayer>(GetOwner());
+	
 	//. 충돌 채널 저장
 	VacuumObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_GameTraceChannel2));
 	VacuumObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_PhysicsBody));
@@ -72,9 +77,7 @@ void ASlimeVacpack::BeginPlay()
 	
 	//. Inventory 슬롯 4칸 고정
 	Inventory.SetNum(4);
-	
-	//. Delegate를 위한 플레이어 저장
-	SlimePlayer = Cast<ASlimePlayer>(GetOwner());
+	LoadInventorySlot();
 }
 
 // Called every frame
@@ -110,19 +113,6 @@ void ASlimeVacpack::SelectSlot(int32 SlotNum)
 	
 	// UE_LOG(LogTemp, Warning, TEXT("\nSlotNum: %d, ID: %s, Count: %d"), 
 	// 	SelectSlotNumber, *Inventory[SelectSlotNumber].ID.ToString(), Inventory[SelectSlotNumber].Count);
-}
-
-void ASlimeVacpack::ClearInventorySlot()
-{
-	for (int32 i = 0; i < Inventory.Num(); i++)
-	{
-		Inventory[i].ItemClass = nullptr;
-		Inventory[i].Count = 0;
-		Inventory[i].ID = "100";
-		
-		//. 습득 Delegate 실행 (UI에 띄우기 위한 매개변수)
-		SlimePlayer->OnVacuuming.Broadcast(Inventory[i].ID, Inventory[i].Count, i);
-	}
 }
 
 int32 ASlimeVacpack::FindEmptySlot(FName ID)
@@ -185,6 +175,9 @@ void ASlimeVacpack::OnComponentBeginOverlap(UPrimitiveComponent* OverlappedCompo
 	//. 습득 Delegate 실행 (UI에 띄우기 위한 매개변수)
 	SlimePlayer->OnVacuuming.Broadcast(ID, Inventory[SlotNum].Count, SlotNum);
 
+	//! 저장
+	SaveInventorySlot();
+	
 	TArray<UPrimitiveComponent*> PrimComps;
 	OtherActor->GetComponents<UPrimitiveComponent>(PrimComps);
 	for (UPrimitiveComponent* Comp : PrimComps)
@@ -226,6 +219,42 @@ void ASlimeVacpack::ShowItemInformation()
 	// UE_LOG(LogTemp, Warning, TEXT("ID: %s"), *HitResult.GetActor()->GetName());
 	FName ID = IVacuumableInterface::Execute_GetID(HitResult.GetActor());
 	SlimePlayer->OnItemInfo.Broadcast(ID);
+}
+
+void ASlimeVacpack::ClearInventorySlot()
+{
+	for (int32 i = 0; i < Inventory.Num(); i++)
+	{
+		Inventory[i].ItemClass = nullptr;
+		Inventory[i].Count = 0;
+		Inventory[i].ID = "100";
+		
+		//. 습득 Delegate 실행 (UI에 띄우기 위한 매개변수)
+		SlimePlayer->OnVacuuming.Broadcast(Inventory[i].ID, Inventory[i].Count, i);
+	}
+	
+	//! 저장
+	SaveInventorySlot();
+}
+
+void ASlimeVacpack::SaveInventorySlot()
+{
+	//! 저장
+	USlimeGameInstance* GI = Cast<USlimeGameInstance>(GetWorld()->GetGameInstance());	
+	GI->PlaySaveGame->SaveInvenSlots = Inventory;
+}
+
+void ASlimeVacpack::LoadInventorySlot()
+{	
+	//! 로드
+	USlimeGameInstance* GI = Cast<USlimeGameInstance>(GetWorld()->GetGameInstance());	
+	Inventory = GI->PlaySaveGame->SaveInvenSlots;
+	
+	for (int32 i = 0; i < Inventory.Num(); i++)
+	{
+		//. 습득 Delegate 실행 (UI에 띄우기 위한 매개변수)
+		SlimePlayer->OnVacuuming.Broadcast(Inventory[i].ID, Inventory[i].Count, i);
+	}
 }
 
 // 감지거리 안에 들어온 Vacuumable Actor 찾기
@@ -530,6 +559,8 @@ void ASlimeVacpack::FireVacuumable()
 	// UE_LOG(LogTemp, Error, TEXT("\nSlotNum: %d, ID: %s, Count: %d"), 
 	// 	SelectSlotNumber, *Inventory[SelectSlotNumber].ID.ToString(), Inventory[SelectSlotNumber].Count);
 	SlimePlayer->OnVacuuming.Broadcast(Inventory[SelectSlotNumber].ID, Inventory[SelectSlotNumber].Count, SelectSlotNumber);
+	
+	SaveInventorySlot();
 }
 
 // 파동포

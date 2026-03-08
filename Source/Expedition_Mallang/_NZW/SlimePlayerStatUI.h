@@ -25,6 +25,8 @@ public:
 	void OnUpdateNewbucks(int32 Newbucks);
 	UFUNCTION()
 	void OnUpdateLevel(int32 Level);
+	UFUNCTION()
+	void OnUpdatePlayTime(float PlayTime);
 	
 protected:
 	/** Blueprint에서 실행 할 함수 */
@@ -36,4 +38,6 @@ protected:
 	void BP_UpdateNB(int32 Newbucks);
 	UFUNCTION(BlueprintImplementableEvent, Category="Slime", meta = (DisplayName = "Update LV"))
 	void BP_UpdateLV(int32 Level);
+	UFUNCTION(BlueprintImplementableEvent, Category="Slime", meta = (DisplayName = "Update PT"))
+	void BP_UpdatePT(const FText& PlayTime);
 };
