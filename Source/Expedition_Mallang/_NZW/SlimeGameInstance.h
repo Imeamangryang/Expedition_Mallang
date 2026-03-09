@@ -37,9 +37,15 @@ USTRUCT(BlueprintType)
 struct FFarmSlime
 {
 	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FName SlimeID;	
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FName SlimeID;
+	TSubclassOf<AActor> SlimeClass;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FVector> SlimeLastLocations;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 Count;
@@ -64,7 +70,11 @@ public:
 	void LoadSettings();
 	
 	UFUNCTION(BlueprintCallable, Category="SlimeGame|SlimeFarm")
-	void SetFarmSlimes(FName SlimeID, bool bIsIn);
+	void SetFarmSlimes(FName SlimeID, TSubclassOf<AActor> SlimeClass, bool bIsIn);
+	UFUNCTION(BlueprintCallable, Category="SlimeGame|SlimeFarm")
+	void SetFarmSlimeLocation(FName SlimeID, FVector LastLocation);
+	UFUNCTION(BlueprintCallable, Category="SlimeGame|SlimeFarm")
+	void ClearFarmSlimeLocation();
 	
 	// 특정 레벨 데이터 조회
 	UFUNCTION(BlueprintCallable, Category="SlimeGame|Stat")

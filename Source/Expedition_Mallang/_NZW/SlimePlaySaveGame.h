@@ -34,5 +34,5 @@ public:
 	
 	// 슬라임 농장에 있는 슬라임들 -> 슬라임ID * Count => Spawn Slime
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<struct FFarmSlime> SaveFarmSlimeCounts;
+	TArray<struct FFarmSlime> SaveFarmSlimes;
 };

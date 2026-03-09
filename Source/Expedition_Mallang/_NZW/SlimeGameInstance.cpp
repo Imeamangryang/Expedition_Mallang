@@ -39,8 +39,13 @@ void USlimeGameInstance::SaveGame()
 	{
 		if (UGameplayStatics::SaveGameToSlot(PlaySaveGame, TEXT("PlaySaveGame"), 0))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("SaveLevel: %d / SaveNewbucks: %d / SavePlayTime: %.1f"), 
-				PlaySaveGame->SaveLevel, PlaySaveGame->SaveNewbucks, PlaySaveGame->SavePlayTime);
+			UE_LOG(LogTemp, Warning, TEXT("SaveLevel: %d / SaveNewbucks: %d / SavePlayTime: %.1f / SlimeFarm: %d"), 
+				PlaySaveGame->SaveLevel, PlaySaveGame->SaveNewbucks, PlaySaveGame->SavePlayTime, PlaySaveGame->SaveFarmSlimes.Num());
+			for (auto Slime : PlaySaveGame->SaveFarmSlimes)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("SlimeID: %s / SlimeClass: %s / SlimeCount: %d"),
+					*Slime.SlimeID.ToString(), Slime.SlimeClass ? *Slime.SlimeClass->GetName() : TEXT("None"), Slime.Count);	
+			}
 			UE_LOG(LogTemp, Warning, TEXT("SAVE SAVE SAVE SAVE SAVE"));
 		}
 	}
@@ -109,35 +114,74 @@ void USlimeGameInstance::LoadSettings()
 	}
 }
 
-void USlimeGameInstance::SetFarmSlimes(FName SlimeID, bool bIsIn)
+void USlimeGameInstance::SetFarmSlimes(FName SlimeID, TSubclassOf<AActor> SlimeClass, bool bIsIn)
 {
-	for (auto& Slime : PlaySaveGame->SaveFarmSlimeCounts)
+	//. 해당 슬라임 아이디가 있는 경우
+	for (int32 i = 0; i < PlaySaveGame->SaveFarmSlimes.Num(); i++)
 	{
+		auto& Slime = PlaySaveGame->SaveFarmSlimes[i];
+		
 		if (Slime.SlimeID == SlimeID)
 		{
 			if (bIsIn)
+			{
 				Slime.Count++;
+			}
 			else
 			{
 				if (Slime.Count > 0)
+				{
 					Slime.Count--;
+				}
+				
+				if (Slime.Count <= 0)
+				{
+					PlaySaveGame->SaveFarmSlimes.RemoveAt(i);
+				}
 			}
 			
-			UE_LOG(LogTemp, Warning, TEXT("%d"), PlaySaveGame->SaveFarmSlimeCounts.Num());
-			//PlaySaveGame->SaveFarmSlimeCounts = FarmSlimes;
-			
+			UE_LOG(LogTemp, Warning, TEXT("%d"), PlaySaveGame->SaveFarmSlimes.Num());
+		
 			return;
 		}
 	}
 	
+	// 새로운 아이디의 슬라임이 들어온 경우
 	if (bIsIn)
 	{
 		FFarmSlime FarmSlime;
 		FarmSlime.SlimeID = SlimeID;
+		FarmSlime.SlimeClass = SlimeClass;
 		FarmSlime.Count = 1;
-		PlaySaveGame->SaveFarmSlimeCounts.Add(FarmSlime);
-		UE_LOG(LogTemp, Warning, TEXT("%d"), PlaySaveGame->SaveFarmSlimeCounts.Num());
-		//PlaySaveGame->SaveFarmSlimeCounts = FarmSlimes;
+		PlaySaveGame->SaveFarmSlimes.Add(FarmSlime);
+		UE_LOG(LogTemp, Warning, TEXT("슬라임 종류 개수 : %d"), PlaySaveGame->SaveFarmSlimes.Num());
+	}
+}
+
+void USlimeGameInstance::SetFarmSlimeLocation(FName SlimeID, FVector LastLocation)
+{
+	for (auto& Slime : PlaySaveGame->SaveFarmSlimes)
+	{
+		if (Slime.SlimeID == SlimeID)
+		{
+			Slime.SlimeLastLocations.Add(LastLocation);
+			
+			if (Slime.SlimeLastLocations.Num() > Slime.Count)
+			{
+				UE_LOG(LogTemp, Error, TEXT("엉? 위치가 슬라임보다 많다?"));
+			}
+			
+			UE_LOG(LogTemp, Error, TEXT("저장 됨! 슬라임개수: %d, 위치: %d"), Slime.Count, Slime.SlimeLastLocations.Num());
+		}
+	}
+}
+
+void USlimeGameInstance::ClearFarmSlimeLocation()
+{
+	// SlimeFarm Location 초기화
+	for (auto& Slime : PlaySaveGame->SaveFarmSlimes)
+	{
+		Slime.SlimeLastLocations.Empty();
 	}
 }
 
