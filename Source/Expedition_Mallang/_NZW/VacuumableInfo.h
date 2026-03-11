@@ -34,7 +34,7 @@ public:
 	UClass* ItemClass = nullptr;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FName ID = TEXT("");
+	FName ID = TEXT("100");
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 Count = 0;

@@ -2,21 +2,24 @@
 
 #include "_NZW/SlimePlayer.h"
 
-#include <ThirdParty/ShaderConductor/ShaderConductor/External/DirectXShaderCompiler/include/dxc/DXIL/DxilConstants.h>
-
+#include "Camera/CameraComponent.h"
+#include "Components/AudioComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/SpotLightComponent.h"
 #include "EnhancedInputComponent.h"
+#include "Engine/OverlapResult.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
+
 #include "InteractableInterface.h"
 #include "SlimeGameInstance.h"
 #include "SlimePlayerController.h"
 #include "SlimePlayerSlotUI.h"
 #include "SlimePlayerStatUI.h"
+#include "SlimePlaySaveGame.h"
 #include "SlimeShopUI.h"
 #include "SlimeVacpack.h"
-#include "Camera/CameraComponent.h"
-#include "Components/CapsuleComponent.h"
-#include "Components/SpotLightComponent.h"
-#include "Engine/OverlapResult.h"
-#include "GameFramework/CharacterMovementComponent.h"
+
 
 // Sets default values
 ASlimePlayer::ASlimePlayer()
@@ -66,6 +69,11 @@ ASlimePlayer::ASlimePlayer()
 	SpotLight->SetIntensity(0);
 	SpotLight->AttenuationRadius = 1050.0f;
 	SpotLight->OuterConeAngle = 45.24f;
+	
+	JetpackAudioComp = CreateDefaultSubobject<UAudioComponent>(TEXT("JetpackAudioComp"));
+	JetpackAudioComp->bAutoActivate = false;
+	VacuumAudioComp = CreateDefaultSubobject<UAudioComponent>(TEXT("VaccumAudioComp"));
+	VacuumAudioComp->bAutoActivate = false;
 }
 
 // Called when the game starts or when spawned
@@ -73,40 +81,65 @@ void ASlimePlayer::BeginPlay()
 {
 	Super::BeginPlay();
 	
-	PC = Cast<ASlimePlayerController>(GetWorld()->GetFirstPlayerController());
-	
 	//. Vacpack 생성 및 부착
-	if (SlimeVacpack == nullptr)
+	if (SlimeVacpackClass != nullptr)
 	{
 		FActorSpawnParameters SpawnParams;
 		SpawnParams.Owner = this;
 		SpawnParams.Instigator = GetInstigator();
 		
-		SlimeVacpack = GetWorld()->SpawnActor<ASlimeVacpack>(ASlimeVacpack::StaticClass(),  FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+		SlimeVacpack = GetWorld()->SpawnActor<ASlimeVacpack>(SlimeVacpackClass,  FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
 		const FAttachmentTransformRules AttachmentRule(EAttachmentRule::SnapToTarget, false);
 		
 		// attach the weapon actor
 		SlimeVacpack->AttachToActor(this, AttachmentRule);
-
+		
 		// attach the weapon meshes
 		SlimeVacpack->GetWeaponFirstMesh()->AttachToComponent(FirstSkeletalMesh, AttachmentRule, SlimePlayerWeaponSocket);
 		SlimeVacpack->GetWeaponThirdMesh()->AttachToComponent(GetMesh(), AttachmentRule, SlimePlayerWeaponSocket);
+		// SlimeVacpack->GetWeaponFirstMesh()->SetRelativeRotation(FRotator(0, 90, 0));
+		// SlimeVacpack->GetWeaponThirdMesh()->SetRelativeRotation(FRotator(0, 90, 0));
+		// SlimeVacpack->GetWeaponFirstMesh()->SetRelativeScale3D(FVector(.03f, .03f, .03f));
+		// SlimeVacpack->GetWeaponThirdMesh()->SetRelativeScale3D(FVector(.03f, .03f, .03f));
+		
 		SlimeVacpack->GetWeaponFirstMesh()->SetAnimationMode(EAnimationMode::AnimationSingleNode);
 		SlimeVacpack->GetWeaponFirstMesh()->SetAnimation(nullptr);
 	}
 	
-	//. Stat 초기화
+	// Stat 초기화
+	GI = Cast<USlimeGameInstance>(GetWorld()->GetGameInstance());
+	if (GI || GI->PlaySaveGame)
+	{
+		FPlayerStat LoadStat;
+		GI->GetStatData(GI->PlaySaveGame->SaveLevel, LoadStat);
+		CurLevel = LoadStat.Level;
+		CurHP = MaxHP = LoadStat.MaxHP;
+		CurMP = MaxMP = LoadStat.MaxMP;
+		Newbucks = GI->PlaySaveGame->SaveNewbucks;
+		CurPlayTime = GI->PlaySaveGame->SavePlayTime;
+		
+		SetActorLocation(GI->PlaySaveGame->SaveLastLocation);
+	}
+	
 	CurHP = MaxHP;
 	CurMP = MaxMP;
 	
 	CurrentSpeed = MoveSpeed;
 	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed;
+	GetCharacterMovement()->JumpZVelocity = JumpPower;
+	
+	GetWorldTimerManager().SetTimer(PlayTimeTimerHandle, this, &ASlimePlayer::UpdatePlayTime, 1.0f, true);
+	
+	//. Jetpack & Vacuuum Sound
+	JetpackAudioComp->SetSound(JetpackLoopSound);
+	VacuumAudioComp->SetSound(VacuumLoopSound);
 	
 	//. Delegate 초기화 호출
 	OnUpdateHPInPercent.Broadcast(CurHP, MaxHP);
 	OnUpdateMPInPercent.Broadcast(CurMP, MaxMP);
 	OnUpdateNewbucks.Broadcast(Newbucks);
 	OnShopInteraction.Broadcast(CurLevel);	
+	OnUpdatePlayTime.Broadcast(CurPlayTime);
 }
 
 // Called every frame
@@ -136,6 +169,9 @@ void ASlimePlayer::Tick(float DeltaTime)
 	//. 애니메이션에 넘겨주기 위한 Velocity
 	// Velocity = FVector(Location.X, Location.Y, Location.Z) / DeltaTime;
 	Velocity = GetCharacterMovement()->Velocity;
+	
+	//. 발소리
+	FootStepHandle();
 	
 	//. 제트팩
 	Jetpack(DeltaTime);
@@ -197,6 +233,7 @@ void ASlimePlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 			if (PlayerController->WaveCannonAction)
 			{
 				EnhancedInput->BindAction(PlayerController->WaveCannonAction, ETriggerEvent::Started, this, &ASlimePlayer::WaveCannon);
+				EnhancedInput->BindAction(PlayerController->WaveCannonAction, ETriggerEvent::Completed, this, &ASlimePlayer::WaveCannonEnd);
 			}
 			
 			if (PlayerController->Num_1Action)
@@ -236,6 +273,23 @@ void ASlimePlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 			}
 		}
 	}
+}
+
+void ASlimePlayer::Landed(const FHitResult& Hit)
+{
+	Super::Landed(Hit);
+	
+	JetpackCurTime = 0.0f;
+	
+	UGameplayStatics::PlaySoundAtLocation(this, JumpEndSound, GetActorLocation());
+	JetpackAudioComp->FadeOut(1.0f, 0.f);
+}
+
+void ASlimePlayer::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
+	
+	GI->PlaySaveGame->SaveLastLocation = GetActorLocation();
 }
 
 void ASlimePlayer::FillMPStart(float DeltaTime)
@@ -281,22 +335,53 @@ void ASlimePlayer::Move(const FInputActionValue& Value)
 	AddMovementInput(RightDir,   MoveInput.Y);
 }
 
+void ASlimePlayer::FootStepHandle()
+{
+	if (!GetCharacterMovement()->IsMovingOnGround()) return;
+	
+	FVector CurLocation = GetActorLocation();
+	AccumulatedDistance += FVector::Dist(CurLocation, LastFootStepLocation);
+	LastFootStepLocation = CurLocation;
+	
+	if (AccumulatedDistance >= FootStepDistance)
+	{
+		AccumulatedDistance = 0.0f;
+		PlayRandomFootStep();
+	}
+}
+
+void ASlimePlayer::PlayRandomFootStep()
+{
+	if (FootStepSounds.IsEmpty()) return;
+	
+	int32 RandomNum = FMath::RandRange(0, FootStepSounds.Num() - 1);
+	UGameplayStatics::PlaySoundAtLocation(this, FootStepSounds[RandomNum], GetActorLocation());
+}
+
 void ASlimePlayer::StartJump(const FInputActionValue& Value)
 {
 	if (Value.Get<bool>())
 	{
-		Jump();
-		
-		if (CurMP > 0.0f)
+		if (!GetCharacterMovement()->IsFalling())
 		{
-			bIsJetpackOn = true;
-		
-			if (GetCharacterMovement()->IsFalling())
-			{ // 공중에서 눌렀을 경우
-				CurrentJetpackAcceleration = JetpackAcceleration + 500.0f;
-			}
-			else
-			{ // 땅에서 점프 했을 경우
+			Jump();
+			UGameplayStatics::PlaySoundAtLocation(this, JumpStartSound, GetActorLocation());
+		}
+		else
+		{
+			if (CurMP > 0.0f)
+			{
+				bIsJetpackOn = true;
+				JetpackAudioComp->FadeIn(0.3f, 1.0f);
+			
+				// 떨어지는 중일 때 => 관성 없앰
+				FVector CurVelocity = GetCharacterMovement()->Velocity;
+				if (CurVelocity.Z < 0.0f)
+				{
+					CurVelocity.Z /= 3.0f;
+					GetCharacterMovement()->Velocity = CurVelocity;
+				}
+			
 				CurrentJetpackAcceleration = JetpackAcceleration;
 			}
 		}
@@ -308,8 +393,10 @@ void ASlimePlayer::StartJump(const FInputActionValue& Value)
 void ASlimePlayer::EndJump(const FInputActionValue& Value)
 {
 	StopJumping();
+	
 	bIsJetpackOn = false;
 	bIsMPDecreasing = false;
+	JetpackAudioComp->FadeOut(0.3f, 0.f);
 	
 	CurrentJetpackAcceleration = 0.0f;
 	
@@ -323,6 +410,7 @@ void ASlimePlayer::Jetpack(float DeltaTime)
 		CurMP = 0.0f;
 		bIsJetpackOn = false;
 		bIsMPDecreasing = false;
+		JetpackAudioComp->FadeOut(0.3f, 0.f);
 	}
 	
 	if (GetCharacterMovement()->IsFalling())
@@ -331,11 +419,7 @@ void ASlimePlayer::Jetpack(float DeltaTime)
 		{
 			JetpackCurTime += DeltaTime;
 		}
-	}
-	else
-	{
-		JetpackCurTime = 0.0f;
-	}
+	}	
 
 	if (bIsJetpackOn && JetpackCurTime >= JetpackStartTime)
 	{
@@ -346,8 +430,6 @@ void ASlimePlayer::Jetpack(float DeltaTime)
 		bIsMPDecreasing = true;
 		CurFillMpTime = 0.0f;
 		UpdateMP(JetpackLoseMPTime * DeltaTime);
-	//!	CurMP = FMath::Max(CurMP - JetpackLoseMPTime * DeltaTime, 0.0f);
-	//!	OnUpdateMPInPercent.Broadcast(CurMP, MaxMP);
 	}
 } 
 
@@ -369,7 +451,6 @@ void ASlimePlayer::Sprint(const FInputActionValue& Value)
 		bIsMPDecreasing = true;
 		CurFillMpTime = 0.0f;
 		UpdateMP(SprintLoseMPTime * GetWorld()->DeltaTimeSeconds);
-	//!	CurMP = FMath::Max(CurMP - SprintLoseMPTime * GetWorld()->DeltaTimeSeconds, 0.0f);
 		OnUpdateMPInPercent.Broadcast(CurMP, MaxMP);
 	}
 	else
@@ -383,6 +464,7 @@ void ASlimePlayer::Sprint(const FInputActionValue& Value)
 void ASlimePlayer::FlashLight(const FInputActionValue& Value)
 {
 	bIsSpotLightOn = !bIsSpotLightOn;
+	UGameplayStatics::PlaySoundAtLocation(this, FlashLightSound, GetActorLocation());
 
 	// UE_LOG(LogTemp, Warning, TEXT("Flashlight: %s"), bIsSpotLightOn ? TEXT("ON") : TEXT("OFF"));
 	
@@ -394,6 +476,8 @@ void ASlimePlayer::VacuumStart(const FInputActionValue& Value)
 	if (Value.Get<bool>())
 	{
 		SlimeVacpack->bIsVacuuming = true;
+		
+		VacuumAudioComp->FadeIn(0.3f, 1.0f);
 		// UE_LOG(LogTemp, Warning, TEXT("Vacuum Start!"));
 	}
 }
@@ -401,6 +485,8 @@ void ASlimePlayer::VacuumStart(const FInputActionValue& Value)
 void ASlimePlayer::VacuumEnd(const FInputActionValue& Value)
 {
 	SlimeVacpack->StopVacuuming();
+	
+	VacuumAudioComp->FadeOut(0.3f, 0.0f);
 	// UE_LOG(LogTemp, Warning, TEXT("Vacuum End!"));
 }
 
@@ -416,18 +502,20 @@ void ASlimePlayer::WaveCannon(const FInputActionValue& Value)
 {
 	if (Value.Get<bool>())
 	{
+		if (CurMP < WaveCannonMP) return;
+
 		SlimeVacpack->WaveCannon();
+		UGameplayStatics::PlaySoundAtLocation(this, WaveCannonSound, GetActorLocation());
 		
 		bIsMPDecreasing = true;
 		CurFillMpTime = 0.0f;
 		UpdateMP(WaveCannonMP);
-	//!	CurMP -= WaveCannonMP;
-	//!	OnUpdateMPInPercent.Broadcast(CurMP, MaxMP);
 	}
-	else
-	{
-		bIsMPDecreasing = false;
-	}
+}
+
+void ASlimePlayer::WaveCannonEnd(const FInputActionValue& Value)
+{
+	bIsMPDecreasing = false;
 }
 
 void ASlimePlayer::Num1Func(const FInputActionValue& Value)
@@ -506,8 +594,10 @@ void ASlimePlayer::Interact(const FInputActionValue& Value)
 			// 인터페이스 체크
 			if (HitActor->GetClass()->ImplementsInterface(UInteractableInterface::StaticClass()))
 			{
+				ASlimePlayerController* PC = Cast<ASlimePlayerController>(GetWorld()->GetFirstPlayerController());
 				PC->SlotUIWidget->SetVisibility(ESlateVisibility::Hidden);
 				IInteractableInterface::Execute_Interact(HitActor);
+				UGameplayStatics::PlaySoundAtLocation(this, InteractSound, GetActorLocation());
 				break;
 			}
 		}
@@ -521,23 +611,21 @@ void ASlimePlayer::EnterFunc(const FInputActionValue& Value)
 		// 레벨업 쇼핑 
 		if (bShopping)
 		{
-			USlimeGameInstance* GI = Cast<USlimeGameInstance>(GetGameInstance());
-			
 			FPlayerStat NextPlayerStat;
 			int32 NextLevel = CurLevel+1;
 			
 			if (!GI->GetStatData(NextLevel, NextPlayerStat))
 			{
-				UE_LOG(LogTemp, Error, TEXT("다음 레벨 없음!!!"));
+				// UE_LOG(LogTemp, Error, TEXT("다음 레벨 없음!!!"));
 				return;
 			}
 			
 			if (NextPlayerStat.Cost <= Newbucks)
 			{
-				//CurLevel = NextLevel;
-				
 				UpdateNewbucks(-NextPlayerStat.Cost);
+				UGameplayStatics::PlaySoundAtLocation(this, LevelUpSuccessSound, GetActorLocation());
 				
+				// 레벨업 적용
 				GI->ApplyUpgrade(CurLevel, NextPlayerStat);
 				OnShopInteraction.Broadcast(CurLevel);
 				
@@ -551,12 +639,19 @@ void ASlimePlayer::EnterFunc(const FInputActionValue& Value)
 				
 				SlimeVacpack->SetWaveCannonForce(NextPlayerStat.WavePower);
 				
-				UE_LOG(LogTemp, Error, TEXT("레벨업 성공"));
+				//! 레벨 업 했으면 게임 세이브
+				GI->PlaySaveGame->SaveLevel = CurLevel; 
+				GI->PlaySaveGame->SaveNewbucks = Newbucks;
+				GI->SaveGame();
+				
+				
+				// UE_LOG(LogTemp, Error, TEXT("레벨업 성공"));				
 			}
 			else
 			{
 				OnShopNotEnoughNewbucks.Broadcast();
-				UE_LOG(LogTemp, Error, TEXT("레벨업 실패!!!"));
+				UGameplayStatics::PlaySoundAtLocation(this, LevelUpFailedSound, GetActorLocation());
+				// UE_LOG(LogTemp, Error, TEXT("레벨업 실패!!!"));
 			}
 			
 			return;
@@ -571,7 +666,7 @@ void ASlimePlayer::ShopInteract(const FInputActionValue& Value)
 {
 	if (Value.Get<bool>())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Shop Interact 들어옴"));
+		// UE_LOG(LogTemp, Warning, TEXT("Shop Interact 들어옴"));
 		OnShopInteraction.Broadcast(CurLevel);
 	}
 }
@@ -580,9 +675,10 @@ void ASlimePlayer::ExitShop(const FInputActionValue& Value)
 {
 	if (Value.Get<bool>())
 	{ 
-		UE_LOG(LogTemp, Warning, TEXT("!!!!!TAB 눌림 !!!!!%d"), bShopping);
+		// UE_LOG(LogTemp, Warning, TEXT("!!!!!TAB 눌림 !!!!!%d"), bShopping);
 		if (bShopping)
 		{
+			ASlimePlayerController* PC = Cast<ASlimePlayerController>(GetWorld()->GetFirstPlayerController());
 			PC->ShopUIWidget->SetVisibility(ESlateVisibility::Hidden);
 			PC->SlotUIWidget->SetVisibility(ESlateVisibility::Visible);
 			bShopping = false;
@@ -590,9 +686,13 @@ void ASlimePlayer::ExitShop(const FInputActionValue& Value)
 	}
 }
 
+void ASlimePlayer::ESC_Menu(const FInputActionValue& Value)
+{
+}
+
 void ASlimePlayer::PlayerDead()
 {
-	UE_LOG(LogTemp, Warning, TEXT("죽음"));
+	// UE_LOG(LogTemp, Warning, TEXT("죽음"));
 	bIsDead = true;
 	OnDead.Broadcast();
 	SlimeVacpack->ClearInventorySlot();	
@@ -600,14 +700,22 @@ void ASlimePlayer::PlayerDead()
 
 void ASlimePlayer::PlayerRebirth()
 {
-	UE_LOG(LogTemp, Warning, TEXT("환생"));
+	// UE_LOG(LogTemp, Warning, TEXT("환생"));
 	UpdateHP(-MaxHP);
+	
+	// 패널티 (+ 플레이 시간)
+	CurPlayTime += PenaltyTime * 3600;
+	GI->PlaySaveGame->SavePlayTime = CurPlayTime;
+	GI->SessionStartTime = GetWorld()->GetTimeSeconds();
+	
+	OnUpdatePlayTime.Broadcast(CurPlayTime);
 	bIsDead = false;
 }
 
 void ASlimePlayer::UpdateNewbucks(int32 AddNewbucks)
 {
 	Newbucks += AddNewbucks;
+	GI->PlaySaveGame->SaveNewbucks = Newbucks;
 	OnUpdateNewbucks.Broadcast(Newbucks);
 }
 
@@ -623,4 +731,13 @@ void ASlimePlayer::UpdateMP(float MP)
 	CurMP -= MP;
 	CurMP = FMath::Max(CurMP, 0.0f);
 	OnUpdateMPInPercent.Broadcast(CurMP, MaxMP);
+}
+
+void ASlimePlayer::UpdatePlayTime()
+{
+	CurPlayTime += GetWorld()->GetTimeSeconds() - GI->SessionStartTime;
+	GI->PlaySaveGame->SavePlayTime = CurPlayTime;
+	GI->SessionStartTime = GetWorld()->GetTimeSeconds();
+	
+	OnUpdatePlayTime.Broadcast(CurPlayTime);
 }

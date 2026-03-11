@@ -37,4 +37,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	class USkeletalMeshComponent* SkeletalMeshComp;
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bCanBeInteract = false;
 };

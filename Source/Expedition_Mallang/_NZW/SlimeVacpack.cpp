@@ -3,12 +3,18 @@
 
 #include "SlimeVacpack.h"
 
-#include "SlimePlayer.h"
-#include "VacuumableInfo.h"
 #include "Components/ArrowComponent.h"
 #include "Components/SphereComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "NiagaraComponent.h"
+#include "NiagaraSystem.h"
+
+#include "SlimeGameInstance.h"
+#include "SlimePlayer.h"
+#include "SlimePlaySaveGame.h"
 #include "Slime/ASlimeActor.h"
+#include "VacuumableInfo.h"
+#include "Kismet/GameplayStatics.h"
 
 // Sets default values
 ASlimeVacpack::ASlimeVacpack()
@@ -23,12 +29,17 @@ ASlimeVacpack::ASlimeVacpack()
 	WeaponThird = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Weapon Third"));
 	
 	//. 무기 메쉬 입히기 (여기는 Skeletal Mesh)
-	ConstructorHelpers::FObjectFinder<USkeletalMesh> Weapon(TEXT("/Game/Weapons/GrenadeLauncher/Meshes/SKM_GrenadeLauncher.SKM_GrenadeLauncher"));
+	ConstructorHelpers::FObjectFinder<USkeletalMesh> Weapon(TEXT("/Script/Engine.SkeletalMesh'/Game/_NZW/04_Assets/Weapon/despicable_me_fart-gun/SKM_Vacpack.SKM_Vacpack'"));
 	if (Weapon.Succeeded()) 
 	{
 		WeaponFirst->SetSkeletalMeshAsset(Weapon.Object);
 		WeaponThird->SetSkeletalMeshAsset(Weapon.Object);
 	}
+	
+	WeaponFirst->SetRelativeRotation(FRotator(0, 90, 0));
+	WeaponThird->SetRelativeRotation(FRotator(0, 90, 0));
+	WeaponFirst->SetRelativeScale3D(FVector(.015f, .015f, .015f));
+	WeaponThird->SetRelativeScale3D(FVector(.015f, .015f, .015f));
 	
 	//. 각각 맞는 설정으로 초기화
 	WeaponFirst->SetupAttachment(RootComponent);
@@ -42,7 +53,7 @@ ASlimeVacpack::ASlimeVacpack()
 	WeaponThird->SetCollisionProfileName(FName("NoCollision"));
 	
 	//. 총구 설정
-	Muzzle = CreateDefaultSubobject<UArrowComponent>(TEXT("Muzzle"));
+	Muzzle = CreateDefaultSubobject<USceneComponent>(TEXT("Muzzle"));
 	Muzzle->SetupAttachment(WeaponFirst);
 	Muzzle->SetRelativeLocationAndRotation(FVector(0.0f, 23.0f, 11.0f), FRotator(0.0f, 90.0f, 0.0f));
 	Muzzle->SetHiddenInGame(false);
@@ -55,12 +66,27 @@ ASlimeVacpack::ASlimeVacpack()
 	
 	// static ConstructorHelpers::FObjectFinder<UDataTable> DT_Vacable(TEXT("/Script/Engine.DataTable'/Game/_NZW/03_Data/DT_VacuumablInfo.DT_VacuumablInfo'"));
 	// if (DT_Vacable.Succeeded()) VacuumableDataTable = DT_Vacable.Object;
+	
+	StormComp = CreateDefaultSubobject<UNiagaraComponent>(TEXT("StormComp"));
+	ConstructorHelpers::FObjectFinder<UNiagaraSystem> Storm(TEXT("/Script/Niagara.NiagaraSystem'/Game/_NZW/04_Assets/Particles/NS_NZW_Whirlwind.NS_NZW_Whirlwind'"));
+	if (Storm.Succeeded()) StormComp->SetAsset(Storm.Object);
+	StormComp->SetupAttachment(VacuumCollision);
+	StormComp->SetRelativeLocationAndRotation(FVector(60, 0 , 0), FRotator(-90, 0, 0));
+	
+	WaveComp = CreateDefaultSubobject<UNiagaraComponent>(TEXT("WaveComp"));
+	ConstructorHelpers::FObjectFinder<UNiagaraSystem> Wave(TEXT("/Script/Niagara.NiagaraSystem'/Game/_NZW/04_Assets/Particles/NS_NZW_Basic_6.NS_NZW_Basic_6'"));
+	if (Wave.Succeeded()) WaveComp->SetAsset(Wave.Object);
+	WaveComp->SetupAttachment(Muzzle);
+	WaveComp->SetRelativeLocationAndRotation(FVector(60, 0 , 0), FRotator(-90, 0, 0));
 }
 
 // Called when the game starts or when spawned
 void ASlimeVacpack::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	//. Delegate를 위한 플레이어 저장
+	SlimePlayer = Cast<ASlimePlayer>(GetOwner());
 	
 	//. 충돌 채널 저장
 	VacuumObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_GameTraceChannel2));
@@ -69,12 +95,11 @@ void ASlimeVacpack::BeginPlay()
 	//. 오버랩 활성화
 	VacuumCollision->OnComponentBeginOverlap.AddDynamic(this, &ASlimeVacpack::OnComponentBeginOverlap);
 	VacuumCollision->SetGenerateOverlapEvents(false);
+	StormComp->SetVisibility(false);
 	
 	//. Inventory 슬롯 4칸 고정
 	Inventory.SetNum(4);
-	
-	//. Delegate를 위한 플레이어 저장
-	SlimePlayer = Cast<ASlimePlayer>(GetOwner());
+	LoadInventorySlot();
 }
 
 // Called every frame
@@ -110,19 +135,6 @@ void ASlimeVacpack::SelectSlot(int32 SlotNum)
 	
 	// UE_LOG(LogTemp, Warning, TEXT("\nSlotNum: %d, ID: %s, Count: %d"), 
 	// 	SelectSlotNumber, *Inventory[SelectSlotNumber].ID.ToString(), Inventory[SelectSlotNumber].Count);
-}
-
-void ASlimeVacpack::ClearInventorySlot()
-{
-	for (int32 i = 0; i < Inventory.Num(); i++)
-	{
-		Inventory[i].ItemClass = nullptr;
-		Inventory[i].Count = 0;
-		Inventory[i].ID = "100";
-		
-		//. 습득 Delegate 실행 (UI에 띄우기 위한 매개변수)
-		SlimePlayer->OnVacuuming.Broadcast(Inventory[i].ID, Inventory[i].Count, i);
-	}
 }
 
 int32 ASlimeVacpack::FindEmptySlot(FName ID)
@@ -162,12 +174,12 @@ void ASlimeVacpack::OnComponentBeginOverlap(UPrimitiveComponent* OverlappedCompo
 	//. Interface를 갖고있는 Actor인지 확인하고 -> 아이템 아이디 가져오는 Interface
 	if (!OtherActor->Implements<UVacuumableInterface>()) return;
 	FName ID = IVacuumableInterface::Execute_GetID(OtherActor);
-	UE_LOG(LogTemp, Warning, TEXT("빨아들인 ID: %s"), *ID.ToString());
+	// UE_LOG(LogTemp, Warning, TEXT("빨아들인 ID: %s"), *ID.ToString());
 	
 	//. 채울 수 있는 슬롯 확인
 	int32 SlotNum = FindEmptySlot(ID);
 	
-	UE_LOG(LogTemp, Warning, TEXT("SlotNum: %d"), SlotNum);
+	// UE_LOG(LogTemp, Warning, TEXT("SlotNum: %d"), SlotNum);
 	
 	//. 없는 경우
 	if (SlotNum == INDEX_NONE) return;
@@ -185,6 +197,9 @@ void ASlimeVacpack::OnComponentBeginOverlap(UPrimitiveComponent* OverlappedCompo
 	//. 습득 Delegate 실행 (UI에 띄우기 위한 매개변수)
 	SlimePlayer->OnVacuuming.Broadcast(ID, Inventory[SlotNum].Count, SlotNum);
 
+	//! 저장
+	SaveInventorySlot();
+	
 	TArray<UPrimitiveComponent*> PrimComps;
 	OtherActor->GetComponents<UPrimitiveComponent>(PrimComps);
 	for (UPrimitiveComponent* Comp : PrimComps)
@@ -228,19 +243,56 @@ void ASlimeVacpack::ShowItemInformation()
 	SlimePlayer->OnItemInfo.Broadcast(ID);
 }
 
+void ASlimeVacpack::ClearInventorySlot()
+{
+	for (int32 i = 0; i < Inventory.Num(); i++)
+	{
+		Inventory[i].ItemClass = nullptr;
+		Inventory[i].Count = 0;
+		Inventory[i].ID = "100";
+		
+		//. 습득 Delegate 실행 (UI에 띄우기 위한 매개변수)
+		SlimePlayer->OnVacuuming.Broadcast(Inventory[i].ID, Inventory[i].Count, i);
+	}
+	
+	//! 저장
+	SaveInventorySlot();
+}
+
+void ASlimeVacpack::SaveInventorySlot()
+{
+	//! 저장
+	USlimeGameInstance* GI = Cast<USlimeGameInstance>(GetWorld()->GetGameInstance());	
+	GI->PlaySaveGame->SaveInvenSlots = Inventory;
+}
+
+void ASlimeVacpack::LoadInventorySlot()
+{	
+	//! 로드
+	USlimeGameInstance* GI = Cast<USlimeGameInstance>(GetWorld()->GetGameInstance());	
+	Inventory = GI->PlaySaveGame->SaveInvenSlots;
+	
+	for (int32 i = 0; i < Inventory.Num(); i++)
+	{
+		//. 습득 Delegate 실행 (UI에 띄우기 위한 매개변수)
+		SlimePlayer->OnVacuuming.Broadcast(Inventory[i].ID, Inventory[i].Count, i);
+	}
+}
+
 // 감지거리 안에 들어온 Vacuumable Actor 찾기
 void ASlimeVacpack::VacuumDetecting()
 {
 	if (!GetWorld()) return;
 	
 	VacuumCollision->SetGenerateOverlapEvents(true);
+	StormComp->SetVisibility(true);
 	// DrawDebugSphere(GetWorld(), VacuumCollision->GetComponentLocation(), 50, 16, FColor::Green);
 	
 	const FVector Origin = Muzzle->GetComponentLocation();
 	const FVector Forward = Muzzle->GetForwardVector();
 	
 	// DrawDebugSphere(GetWorld(), Origin, DetectRange, 16, FColor::Red);
-	DrawDebugCone(GetWorld(), Origin, Forward, DetectRange, FMath::DegreesToRadians(DetectFOV), FMath::DegreesToRadians(DetectFOV), 24, FColor::Green);
+	// DrawDebugCone(GetWorld(), Origin, Forward, DetectRange, FMath::DegreesToRadians(DetectFOV), FMath::DegreesToRadians(DetectFOV), 24, FColor::Green);
 	
 	//. 제외할 Actors
 	TArray<AActor*> IgnoreActors;
@@ -269,7 +321,7 @@ void ASlimeVacpack::VacuumDetecting()
 		if (Dot >= CosHalfFOV)
 		{
 			CurrentVacuumTargets.Add(Target);
-			DrawDebugSphere(GetWorld(), Target->GetActorLocation(), 100, 16, FColor::Blue);
+			// DrawDebugSphere(GetWorld(), Target->GetActorLocation(), 100, 16, FColor::Blue);
 		}
 	}
 }
@@ -492,6 +544,7 @@ void ASlimeVacpack::StopVacuuming()
 	// 흡입 플래그 끄기 → Tick에서 VacuumDetecting / Vacuumming이 더 이상 실행 안 됨
 	bIsVacuuming = false;
 	VacuumCollision->SetGenerateOverlapEvents(false);
+	StormComp->SetVisibility(false);
 }
 
 // LMB 클릭 시 선택 되어있는 슬롯에 아이템이 있고 개수가 충분하면 하나씩 발사 (Delay 0.5초)
@@ -505,6 +558,8 @@ void ASlimeVacpack::FireVacuumable()
 	FVector Start = Muzzle->GetComponentLocation() + Muzzle->GetForwardVector() * 100.f; //! FireSpawnPoint 변수화 
 	AActor* Item = GetWorld()->SpawnActor<AActor>(
 		Inventory[SelectSlotNumber].ItemClass, Start, FRotator::ZeroRotator);
+	
+	UGameplayStatics::PlaySoundAtLocation(this, FireSound, GetActorLocation());
 	
 	if (AASlimeActor* Slime = Cast<AASlimeActor>(Item))
 	{
@@ -530,6 +585,8 @@ void ASlimeVacpack::FireVacuumable()
 	// UE_LOG(LogTemp, Error, TEXT("\nSlotNum: %d, ID: %s, Count: %d"), 
 	// 	SelectSlotNumber, *Inventory[SelectSlotNumber].ID.ToString(), Inventory[SelectSlotNumber].Count);
 	SlimePlayer->OnVacuuming.Broadcast(Inventory[SelectSlotNumber].ID, Inventory[SelectSlotNumber].Count, SelectSlotNumber);
+	
+	SaveInventorySlot();
 }
 
 // 파동포
@@ -538,7 +595,9 @@ void ASlimeVacpack::WaveCannon()
 	// if (bWaveCannon == false) return;
 	FVector Origin = Muzzle->GetComponentLocation();
 	
-	DrawDebugSphere(GetWorld(), Origin, WaveCannonRange, 16, FColor::Blue, false, 3.0f);
+	WaveComp->Deactivate();
+	WaveComp->Activate(true); // true = 리셋 후 재생 
+	// DrawDebugSphere(GetWorld(), Origin, WaveCannonRange, 16, FColor::Blue, false, 3.0f);
 	
 	//. 제외할 Actors
 	TArray<AActor*> IgnoreActors;

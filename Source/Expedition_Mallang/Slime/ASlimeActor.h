@@ -30,6 +30,7 @@ struct FDistanceConstraint
 	float RestLength;
 	
 	float Lambda = 0.0f;			// 누적 라그랑주 승수
+	bool bBroken = false;			// 제약 조건 파손 여부
 };
 
 struct FTriangle
@@ -66,6 +67,8 @@ public:
 	float ComputeVolume();
 	static void ComputeTriangleGradients(const FVector& A, const FVector& B, const FVector& C, FVector& GradA, FVector& GradB, FVector& GradC);
 	
+	static void ShuffleConstraints(TArray<FDistanceConstraint>& Constraints);
+	
 	UFUNCTION()
 	void OnSphereOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 	UFUNCTION()
@@ -80,6 +83,9 @@ public:
 	
 	UFUNCTION(BlueprintCallable)
 	void SetSlimeSphereRadius(float NewRadius);
+	
+	UFUNCTION(BlueprintCallable)
+	void BurstSlime();
 	
 protected:
 	// Called when the game starts or when spawned
@@ -125,12 +131,12 @@ public:
 	bool bProtectedZone = false;
 	
 	// 부피 컴플라이언스
-	UPROPERTY(EditAnywhere, Category="Slime", meta=(ClampMin="1", ClampMax="10"))
+	UPROPERTY(EditAnywhere, Category="Slime", meta=(ClampMin="0", ClampMax="10"))
 	int32 VolumeStiffness = 6;
 	float VolumeCompliance;
 
 	// 거리 컴플라이언스
-	UPROPERTY(EditAnywhere, Category="Slime", meta=(ClampMin="1", ClampMax="10"))
+	UPROPERTY(EditAnywhere, Category="Slime", meta=(ClampMin="0", ClampMax="10"))
 	int32 DistanceStiffness = 6;
 	float DistanceCompliance;
 
@@ -138,6 +144,7 @@ public:
 	UPROPERTY(EditAnywhere, Category="Slime", meta=(ClampMin="1", ClampMax="10"))
 	int32 CollisionStiffness = 6;
 	float CollisionCompliance; 
+	
 	
 	float RestVolume = 0.0f;			// 초기 부피
 	float VolumeLambda = 0.0f;			// 누적 라그랑주 승수

@@ -7,8 +7,8 @@
 
 void USlimePlayerHUD::SetUpSlimePlayer(ASlimePlayer* SlimePlayer)
 {
-	UE_LOG(LogTemp, Warning, TEXT("HUD SetUpSlimePlayer called. Player=%s"),
-	SlimePlayer ? *SlimePlayer->GetName() : TEXT("NULL"));
+	// UE_LOG(LogTemp, Warning, TEXT("HUD SetUpSlimePlayer called. Player=%s"),
+	// SlimePlayer ? *SlimePlayer->GetName() : TEXT("NULL"));
 	
 	// SlimePlayer->OnUpdateHPInPercent.AddDynamic(this, &USlimePlayerHUD::OnUpdateHPInPercent);
 	// SlimePlayer->OnUpdateMPInPercent.AddDynamic(this, &USlimePlayerHUD::OnUpdateMPInPercent);

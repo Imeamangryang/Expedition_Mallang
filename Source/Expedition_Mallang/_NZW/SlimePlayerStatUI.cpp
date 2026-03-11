@@ -7,13 +7,11 @@
 
 void USlimePlayerStatUI::SetUpSlimePlayer(ASlimePlayer* SlimePlayer)
 {
-	UE_LOG(LogTemp, Warning, TEXT("HUD SetUpSlimePlayer called. Player=%s"),
-	SlimePlayer ? *SlimePlayer->GetName() : TEXT("NULL"));
-	
 	SlimePlayer->OnUpdateHPInPercent.AddDynamic(this, &USlimePlayerStatUI::OnUpdateHPInPercent);
 	SlimePlayer->OnUpdateMPInPercent.AddDynamic(this, &USlimePlayerStatUI::OnUpdateMPInPercent);
 	SlimePlayer->OnUpdateNewbucks.AddDynamic(this, &USlimePlayerStatUI::OnUpdateNewbucks);
 	SlimePlayer->OnShopInteraction.AddDynamic(this, &USlimePlayerStatUI::OnUpdateLevel);
+	SlimePlayer->OnUpdatePlayTime.AddDynamic(this, &USlimePlayerStatUI::OnUpdatePlayTime);
 }
 
 void USlimePlayerStatUI::OnUpdateHPInPercent(float Percent, float Max)
@@ -34,4 +32,15 @@ void USlimePlayerStatUI::OnUpdateNewbucks(int32 Newbucks)
 void USlimePlayerStatUI::OnUpdateLevel(int32 Level)
 {
 	BP_UpdateLV(Level);
+}
+
+void USlimePlayerStatUI::OnUpdatePlayTime(float PlayTime)
+{
+	int32 TotalSec = (int32)PlayTime;
+	int32 H = TotalSec / 3600;
+	int32 M = (TotalSec % 3600) / 60;
+	int32 S = TotalSec % 60;
+	
+	FString CurTime = FString::Printf(TEXT("%02d:%02d:%02d"), H, M, S);
+	BP_UpdatePT(FText::FromString(CurTime));
 }

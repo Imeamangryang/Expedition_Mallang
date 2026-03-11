@@ -3,6 +3,7 @@
 
 #include "_NZW/SlimeNPC.h"
 
+#include "SlimePlayer.h"
 #include "Components/CapsuleComponent.h"
 #include "Misc/MapErrors.h"
 
@@ -42,7 +43,11 @@ void ASlimeNPC::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 
 void ASlimeNPC::Interact_Implementation()
 {
-	UE_LOG(LogTemp, Warning, TEXT("Interact"));
+	// UE_LOG(LogTemp, Warning, TEXT("Interact"));
+		
+	ASlimePlayer* Player = Cast<ASlimePlayer>(GetWorld()->GetFirstPlayerController()->GetPawn());
+	Player->bShopping = true;
 	
+	bCanBeInteract = true;
 }
 

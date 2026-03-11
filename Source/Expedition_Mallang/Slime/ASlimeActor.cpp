@@ -9,6 +9,11 @@
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
+#include "Engine/StaticMesh.h"
+#include "Rendering/StaticMeshVertexBuffer.h"
+#include "StaticMeshResources.h"
+
 
 // Sets default values
 AASlimeActor::AASlimeActor()
@@ -47,7 +52,7 @@ AASlimeActor::AASlimeActor()
 	SourceMesh = Cast<UStaticMesh>(StaticLoadObject(
 		UStaticMesh::StaticClass(),
 		nullptr,
-		TEXT("/Engine/BasicShapes/Sphere.Sphere")
+		TEXT("/Game/Slime/Sphere.Sphere")
 	));
 
 	// Material Instance 경로 설정
@@ -110,6 +115,10 @@ void AASlimeActor::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	
+	VolumeCompliance = FMath::Pow(10.0f, -VolumeStiffness);
+	DistanceCompliance = FMath::Pow(10.0f, -DistanceStiffness);
+	CollisionCompliance = FMath::Pow(10.0f, -CollisionStiffness);
+	
 	ActorLOD = CalculateLOD();
 	
 	RunXPBD(DeltaTime, ActorLOD);
@@ -118,54 +127,130 @@ void AASlimeActor::Tick(float DeltaTime)
 // StaticMesh를 DynamicMesh로 변환하는 유틸리티 함수
 void AASlimeActor::ConvertStaticMeshToDynamicMesh(const UStaticMesh* StaticMesh, UE::Geometry::FDynamicMesh3& OutMesh)
 {
-	if (!StaticMesh) return;
+	// if (!StaticMesh) return;
+	//
+	// const FMeshDescription* MeshDesc = StaticMesh->GetMeshDescription(0);
+	// if (!MeshDesc) return;
+	//
+	// // Attribute 활성화
+	// OutMesh.EnableAttributes();
+	//
+	// auto* UVOverlay = OutMesh.Attributes()->PrimaryUV();
+	//
+	// FStaticMeshAttributes Attributes(const_cast<FMeshDescription&>(*MeshDesc));
+	// auto VertexPositions = Attributes.GetVertexPositions();
+	// auto VertexInstanceUVs = Attributes.GetVertexInstanceUVs();
+	//
+	// // VertexID → DynamicMesh VertexID 매핑
+	// TMap<FVertexID, int> VertexMap;
+	//
+	// // 버텍스 복사
+	// for (const FVertexID VertexID : MeshDesc->Vertices().GetElementIDs())
+	// {
+	// 	FVector3f Pos = VertexPositions[VertexID];
+	// 	int NewID = OutMesh.AppendVertex(static_cast<FVector3d>(Pos));
+	// 	VertexMap.Add(VertexID, NewID);
+	// }
+	//
+	// // 트라이앵글 + UV 복사
+	// for (const FTriangleID TriID : MeshDesc->Triangles().GetElementIDs())
+	// {
+	// 	TArrayView<const FVertexInstanceID> InstanceIDs =
+	// 		MeshDesc->GetTriangleVertexInstances(TriID);
+	//
+	// 	int V[3];
+	// 	int UV[3];
+	//
+	// 	for (int i = 0; i < 3; i++)
+	// 	{
+	// 		FVertexInstanceID InstID = InstanceIDs[i];
+	// 		FVertexID VertID = MeshDesc->GetVertexInstanceVertex(InstID);
+	//
+	// 		V[i] = VertexMap[VertID];
+	//
+	// 		FVector2f UVCoord = VertexInstanceUVs.Get(InstID, 0);
+	// 		UV[i] = UVOverlay->AppendElement(
+	// 			FVector2f(UVCoord.X, UVCoord.Y));
+	// 	}
+	//
+	// 	int TID = OutMesh.AppendTriangle(V[0], V[1], V[2]);
+	// 	UVOverlay->SetTriangle(TID, UE::Geometry::FIndex3i(UV[0], UV[1], UV[2]));
+	// }
+	
+	if (!StaticMesh || !StaticMesh->GetRenderData())
+	{
+		return;
+	}
 
-	const FMeshDescription* MeshDesc = StaticMesh->GetMeshDescription(0);
-	if (!MeshDesc) return;
+	const FStaticMeshLODResources& LOD =
+		StaticMesh->GetRenderData()->LODResources[0];
 
-	// Attribute 활성화
 	OutMesh.EnableAttributes();
 
 	auto* UVOverlay = OutMesh.Attributes()->PrimaryUV();
 
-	FStaticMeshAttributes Attributes(const_cast<FMeshDescription&>(*MeshDesc));
-	auto VertexPositions = Attributes.GetVertexPositions();
-	auto VertexInstanceUVs = Attributes.GetVertexInstanceUVs();
+	const FPositionVertexBuffer& PositionBuffer =
+		LOD.VertexBuffers.PositionVertexBuffer;
 
-	// VertexID → DynamicMesh VertexID 매핑
-	TMap<FVertexID, int> VertexMap;
+	const FStaticMeshVertexBuffer& VertexBuffer =
+		LOD.VertexBuffers.StaticMeshVertexBuffer;
 
-	// 버텍스 복사
-	for (const FVertexID VertexID : MeshDesc->Vertices().GetElementIDs())
+	const FIndexArrayView Indices =
+		LOD.IndexBuffer.GetArrayView();
+
+	TArray<int32> VertexMap;
+	VertexMap.SetNum(PositionBuffer.GetNumVertices());
+
+	TArray<int32> UVMap;
+	UVMap.SetNum(PositionBuffer.GetNumVertices());
+
+	TMap<FVector3f, int32> WeldMap;
+
+	// Vertex 생성
+	for (uint32 i = 0; i < PositionBuffer.GetNumVertices(); ++i)
 	{
-		FVector3f Pos = VertexPositions[VertexID];
-		int NewID = OutMesh.AppendVertex(static_cast<FVector3d>(Pos));
-		VertexMap.Add(VertexID, NewID);
-	}
+		FVector3f Pos = PositionBuffer.VertexPosition(i);
 
-	// 트라이앵글 + UV 복사
-	for (const FTriangleID TriID : MeshDesc->Triangles().GetElementIDs())
-	{
-		TArrayView<const FVertexInstanceID> InstanceIDs =
-			MeshDesc->GetTriangleVertexInstances(TriID);
+		int32 V;
 
-		int V[3];
-		int UV[3];
-
-		for (int i = 0; i < 3; i++)
+		if (int32* Existing = WeldMap.Find(Pos))
 		{
-			FVertexInstanceID InstID = InstanceIDs[i];
-			FVertexID VertID = MeshDesc->GetVertexInstanceVertex(InstID);
-
-			V[i] = VertexMap[VertID];
-
-			FVector2f UVCoord = VertexInstanceUVs.Get(InstID, 0);
-			UV[i] = UVOverlay->AppendElement(
-				FVector2f(UVCoord.X, UVCoord.Y));
+			// 이미 같은 위치 vertex 존재
+			V = *Existing;
+		}
+		else
+		{
+			// 새 vertex 생성
+			V = OutMesh.AppendVertex((FVector3d)Pos);
+			WeldMap.Add(Pos, V);
 		}
 
-		int TID = OutMesh.AppendTriangle(V[0], V[1], V[2]);
-		UVOverlay->SetTriangle(TID, UE::Geometry::FIndex3i(UV[0], UV[1], UV[2]));
+		VertexMap[i] = V;
+
+		// UV는 기존처럼 저장
+		FVector2f UV = VertexBuffer.GetVertexUV(i, 0);
+		UVMap[i] = UVOverlay->AppendElement(UV);
+	}
+
+
+	// Triangle 생성
+	for (int32 i = 0; i < Indices.Num(); i += 3)
+	{
+		int32 I0 = Indices[i];
+		int32 I1 = Indices[i + 1];
+		int32 I2 = Indices[i + 2];
+
+		int V0 = VertexMap[I0];
+		int V1 = VertexMap[I1];
+		int V2 = VertexMap[I2];
+
+		int TID = OutMesh.AppendTriangle(V0, V1, V2);
+
+		int U0 = UVMap[I0];
+		int U1 = UVMap[I1];
+		int U2 = UVMap[I2];
+
+		UVOverlay->SetTriangle(TID, UE::Geometry::FIndex3i(U0, U1, U2));
 	}
 }
 
@@ -236,6 +321,7 @@ void AASlimeActor::InitializeParticlesAndConstraints()
 // 거리 제약 조건 해결 함수
 void AASlimeActor::SolveDistanceConstraints(TArray<FDistanceConstraint>& Constraint, float DeltaTime)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(SolveDistanceConstraints);
 	/*
 	 * XPBD 기반 거리 제약 조건 해결
 	 * 
@@ -268,7 +354,7 @@ void AASlimeActor::SolveDistanceConstraints(TArray<FDistanceConstraint>& Constra
 		float DeltaLambda = (-Cval - Alpha * C.Lambda) / (w1 + w2 + Alpha);
 
 		C.Lambda += DeltaLambda;
-
+		
 		FVector Correction = DeltaLambda * Grad;
 
 		P1.Position += w1 * Correction;
@@ -279,6 +365,7 @@ void AASlimeActor::SolveDistanceConstraints(TArray<FDistanceConstraint>& Constra
 // 부피 보존 제약 조건 해결 함수
 void AASlimeActor::SolveVolumeConstraints(float DeltaTime)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(SolveVolumeConstraints);
 	/*
 	 * XPBD 기반 부피 보존 제약 조건 해결
 	 * 
@@ -291,7 +378,7 @@ void AASlimeActor::SolveVolumeConstraints(float DeltaTime)
 	 * 7. λ 누적 후 모든 파티클의 위치 보정 → Δp_i = w_i · ∇V_i · Δλ
 	 */
 	float CurrentVolume = ComputeVolume();
-	float Constraint = CurrentVolume - RestVolume;
+	float Constraint = (CurrentVolume - RestVolume);
 
 	if (FMath::Abs(Constraint) < 1e-4f)
 		return;
@@ -344,6 +431,7 @@ void AASlimeActor::SolveVolumeConstraints(float DeltaTime)
 // 충돌 해결 함수
 void AASlimeActor::SolveCollision(float DeltaTime)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(SolveCollision);
 	if (OverlappingActors.Num() == 0)
 		return;
 	
@@ -572,6 +660,8 @@ void AASlimeActor::SolveCollision(float DeltaTime)
 
 void AASlimeActor::RunXPBD(float DeltaTime, int32 LOD)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(RunXPBD);
+	
 	if (LOD == 3 && !bProtectedZone)	// LOD 3 : 시뮬레이션 제거
 	{
 		Destroy();
@@ -630,6 +720,8 @@ void AASlimeActor::RunXPBD(float DeltaTime, int32 LOD)
 		P.PrevPosition = P.Position;
 		P.Position += P.Velocity * DeltaTime;
 	}
+	
+	ShuffleConstraints(Constraints);
 	
 	/*
 	 * 제약 조건 해결 (SolverIterations 만큼 반복)
@@ -762,8 +854,18 @@ void AASlimeActor::ComputeTriangleGradients(const FVector& A, const FVector& B, 
 	GradC = FVector::CrossProduct(A, B) / 6.0f;
 }
 
+void AASlimeActor::ShuffleConstraints(TArray<FDistanceConstraint>& Constraints)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(ShuffleConstraints);
+	for (int32 i = Constraints.Num() - 1; i > 0; --i)
+	{
+		int32 j = FMath::RandRange(0, i);
+		Constraints.Swap(i, j);
+	}
+}
+
 void AASlimeActor::OnSphereOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
-	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+                                   UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
 	if (!IsValid(OtherActor) || OtherActor == this)
 	{
@@ -861,4 +963,19 @@ UClass* AASlimeActor::GetItemActorClass_Implementation()
 void AASlimeActor::SetSlimeSphereRadius(float NewRadius)
 {
 	SphereRadius += NewRadius;
+}
+
+void AASlimeActor::BurstSlime()
+{
+	FVector Center = ComputeParticleCenter();
+
+	for (FSlimeParticle& P : Particles)
+	{
+		FVector Dir = (P.Position - Center).GetSafeNormal();
+
+		float Strength = 800.0f;
+
+		P.Position += Dir * Strength * GetWorld()->GetDeltaSeconds();
+		P.Velocity += Dir * Strength;
+	}
 }

@@ -44,4 +44,8 @@ protected:
 	void BP_UpdateSlot_3_UI(FName ID, int32 Count);
 	UFUNCTION(BlueprintImplementableEvent, Category="Slime", meta = (DisplayName = "Update Slot_4 UI"))
 	void BP_UpdateSlot_4_UI(FName ID, int32 Count);
+	
+public:
+	UPROPERTY(EditAnywhere, Category = "SlotUI|Sound")
+	USoundBase* SlotSound;
 };

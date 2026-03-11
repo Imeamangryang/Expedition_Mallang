@@ -24,7 +24,8 @@ ASlimePlayerController::ASlimePlayerController()
 	  Num_1Action(nullptr), Num_2Action(nullptr), Num_3Action(nullptr), Num_4Action(nullptr),
 		InteractAction(nullptr),
 		EnterAction(nullptr),
-		ExitAction(nullptr)
+		ExitAction(nullptr),
+		ESCAction(nullptr)
 {
 }
 
@@ -44,7 +45,7 @@ void ASlimePlayerController::BeginPlay()
 			{
 				// 주어진 IMC를 Subsystem에 추가해 입력 매핑 활성화
 				Subsystem->AddMappingContext(InputMappingContext, 0);
-				UE_LOG(LogTemp, Warning, TEXT("input mapping 활성화 완"));
+				// UE_LOG(LogTemp, Warning, TEXT("input mapping 활성화 완"));
 			}
 		}
 	}
@@ -81,7 +82,7 @@ void ASlimePlayerController::BeginPlay()
 		DeadUIWidget = CreateWidget<USlimeDeadUI>(this, DeadUIClass);
 		if (DeadUIWidget)
 		{
-			DeadUIWidget->AddToViewport();
+			DeadUIWidget->AddToViewport(10);
 		}
 	}
 	

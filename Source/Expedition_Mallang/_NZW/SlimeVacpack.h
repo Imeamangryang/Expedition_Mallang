@@ -8,6 +8,7 @@
 
 class UArrowComponent;
 class USphereComponent;
+class UNiagaraComponent;
 
 struct FSlot;
 
@@ -35,6 +36,14 @@ public:
 	USkeletalMeshComponent* GetWeaponThirdMesh() const { return WeaponThird; }
 	
 	UFUNCTION()
+	void ClearInventorySlot();
+	
+	UFUNCTION()
+	void SaveInventorySlot();
+	UFUNCTION()
+	void LoadInventorySlot();
+	
+	UFUNCTION()
 	void SetWaveCannonForce(float Force) { WaveCannonForce = Force; }
 	
 	// 감지 범위 안의 Vacuumable Actor 목록을 매 프레임 갱신
@@ -46,7 +55,7 @@ public:
 	// 흡입 중단 → 목록 + 슬라임별 속도 상태 전부 초기화
 	UFUNCTION()
 	void StopVacuuming();
-	
+	// 총과 충돌 시 Invectory Slot에 추가 
 	UFUNCTION()
 	void OnComponentBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 	
@@ -58,9 +67,6 @@ public:
 	
 	UFUNCTION()
 	void SelectSlot(int32 SlotNum);
-	
-	UFUNCTION()
-	void ClearInventorySlot();
 	
 	UFUNCTION()
 	void FireVacuumable();
@@ -76,11 +82,15 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
 	USkeletalMeshComponent* WeaponFirst;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
-	USkeletalMeshComponent* WeaponThird;
+	USkeletalMeshComponent* WeaponThird;	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
-	UArrowComponent* Muzzle;
+	USceneComponent* Muzzle;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
 	USphereComponent* VacuumCollision;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
+	UNiagaraComponent* StormComp;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
+	UNiagaraComponent* WaveComp;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|Inventory", meta=(AllowPrivateAccess="true"))
 	TArray<FSlot> Inventory; 
@@ -131,7 +141,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vacpack|WaveCannon", meta=(AllowPrivateAccess="true"))
 	float WaveCannonForce = 2000.0f;
 	
-	//. DataTable
-	// UPROPERTY()
-	// UDataTable* VacuumableDataTable;
+	/** Sound */
+	UPROPERTY(EditAnywhere, Category = "SlimePlayer|Sound")
+	USoundBase* FireSound;
 };
