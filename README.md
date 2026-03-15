@@ -157,9 +157,7 @@ UI는 직접 게임 상태를 계산하기보다는, `SetUpSlimePlayer()`를 통
 
 결과적으로 단순한 클래스 중심 설계뿐 아니라 **데이터 중심 설계(Data-Driven Design)** 요소도 함께 사용하고 있다.
 
-![Data Diagram](Diagram/Data_Diagram.png)
-
-![Data Diagram 2](Diagram/Data_Diagram2.png)
+![Data Diagram 3](Diagram/Data_Diagram3.png)
 
 
 ### **5. Interface 기반 확장 구조**
