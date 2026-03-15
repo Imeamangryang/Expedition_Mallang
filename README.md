@@ -9,7 +9,6 @@ Slime Rancher 모작 프로젝트
 - **플랫폼** : PC
 - **개발 기간** : 2026/02/09 ~ 2026/03/13 (31일)
 - **참여 인원 및** : 2명
-- **사용 기술 스택**: Unreal C++, Blueprints, Niagara, Behavior Tree, GAS, Replication 등
 - **결과물 링크**:
     - GitHub :  [https://github.com/Imeamangryang/Expedition_Mallang](https://github.com/Imeamangryang/Expedition_Mallang):
     - 플레이 영상 / 빌드 링크 : [https://cafe.naver.com/rapavr/32189](https://cafe.naver.com/rapavr/32189)
