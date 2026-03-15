@@ -81,7 +81,7 @@ Slime Rancher 모작 프로젝트
 
 **플레이어 본체 / 플레이어 제어 / 장비 시스템**을 분리하여 각 클래스가 하나의 큰 책임에 집중하도록 구성했다.
 
-
+![Player Diagram](Diagram/Player_Diagram.png)
 
 ### **2. UI와 게임 로직의 분리**
 
@@ -104,6 +104,7 @@ UI는 직접 게임 상태를 계산하기보다는, `SetUpSlimePlayer()`를 통
 - 로직 수정 시 UI 클래스까지 크게 건드리지 않아도 됨
 - Designer/기획자 친화적인 Blueprint 이벤트 기반 확장 가능
 
+![UI Diagram](Diagram/UI_Diagram.png)
 
 ### **3. Delegate 기반 이벤트 드리븐 구조**
 
@@ -157,6 +158,10 @@ UI는 직접 게임 상태를 계산하기보다는, `SetUpSlimePlayer()`를 통
 
 결과적으로 단순한 클래스 중심 설계뿐 아니라 **데이터 중심 설계(Data-Driven Design)** 요소도 함께 사용하고 있다.
 
+![Data Diagram](Diagram/Data_Diagram.png)
+
+![Data Diagram 2](Diagram/Data_Diagram2.png)
+
 
 ### **5. Interface 기반 확장 구조**
 
@@ -198,6 +203,9 @@ UI는 직접 게임 상태를 계산하기보다는, `SetUpSlimePlayer()`를 통
 
 이 구조는 슬라임의 변형/물리 거동을 **독립적인 시뮬레이션**으로 취급하고 있음을 보여준다.
 
+![Slime Diagram](Diagram/Slime_Diagram.png)
+
+![Slime Diagram 2](Diagram/Slime_Diagram2.png)
 
 ### 7. **확장 가능성 관점에서의 구조적 장점**
 
@@ -279,7 +287,3 @@ UI는 직접 게임 상태를 계산하기보다는, `SetUpSlimePlayer()`를 통
 
 - 시뮬레이션 계산을 구조적으로 분리해 최적화 포인트 확보
 - 대량의 슬라임 시뮬레이션에서도 안정적인 FPS 확보
-
----
-
-## 6. 프로젝트 영상
